@@ -70,7 +70,8 @@ export const LoginForm = () => {
         google_id: decodedData.sub
       });
       if (response.data) {
-        login(response.data.user);
+        const { user, access_token, refresh_token } = response.data;
+        login(user, access_token, refresh_token);
         router.push('/'); // Redirect to home page
       }
     } catch (err) {

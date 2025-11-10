@@ -36,6 +36,9 @@ const ProfileEditForm = () => {
       reset({
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        location: user.location,
+        country: user.country,
         profile_picture: user.image,
       });
       setIsLoading(false);
@@ -151,6 +154,42 @@ const ProfileEditForm = () => {
                   className="border-white/10 h-13 mt-2 px-6"
                   type="email"
                 />
+              )}
+            />
+          </div>
+          <div>
+            <Label className="text-white/40" htmlFor="phone">
+              Phone
+            </Label>
+            <Controller
+              name="phone"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} className="border-white/10 h-13 mt-2 px-6" />
+              )}
+            />
+          </div>
+          <div>
+            <Label className="text-white/40" htmlFor="location">
+              Location
+            </Label>
+            <Controller
+              name="location"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} className="border-white/10 h-13 mt-2 px-6" />
+              )}
+            />
+          </div>
+          <div>
+            <Label className="text-white/40" htmlFor="country">
+              Country
+            </Label>
+            <Controller
+              name="country"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} className="border-white/10 h-13 mt-2 px-6" />
               )}
             />
           </div>
