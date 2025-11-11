@@ -127,6 +127,11 @@
   box-sizing: border-box;
 }
 
+body {
+  width: 100vw;
+  overflow-x: hidden;
+}
+
 .carousel-container {
     overflow: hidden;
     padding: 0;
