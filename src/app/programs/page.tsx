@@ -1,10 +1,10 @@
-import { ProgramCard } from '@/components/ProgramCard';
-import { listContent } from '@/services/content';
-import { Metadata } from 'next';
+import { ProgramCard } from "@/components/ProgramCard";
+import { listContent } from "@/services/content";
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'CBM TV | Programs',
-  description: 'Browse all the programs available on CBM TV.',
+  title: "CBM TV | Programs",
+  description: "Browse all the programs available on CBM TV.",
 };
 
 interface Program {
@@ -14,8 +14,8 @@ interface Program {
 }
 
 interface ProgramCardProps {
-  id: string,
-  title: string,
+  id: string;
+  title: string;
   src: string;
   alt: string;
   width: number;
@@ -39,13 +39,17 @@ export default async function ProgramsPage() {
       }));
     }
   } catch (error) {
-    console.error('Error fetching programs:', error);
+    console.error("Error fetching programs:", error);
   }
 
   return (
     <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-10 px-4 sm:px-12 mb-24">
       {programs.map((program: ProgramCardProps, index: number) => (
-        <ProgramCard href={`/programs/${program.id}`} key={index} {...program} />
+        <ProgramCard
+          href={`/programs/${program.id}`}
+          key={index}
+          {...program}
+        />
       ))}
     </section>
   );
