@@ -60,8 +60,6 @@ apiClient.interceptors.response.use(
 
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
 
-        console.log(response);
-
         return apiClient(originalRequest);
       } catch (refreshError) {
         if (axios.isAxiosError(refreshError) && refreshError.response) {

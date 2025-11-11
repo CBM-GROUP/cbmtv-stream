@@ -30,7 +30,6 @@ type Props = {
 
 export default function SeasonsAccordion({ seasons, onEpisodeSelect }: Props) {
   const [episodesBySeason, setEpisodesBySeason] = useState<{ [key: number]: Episode[] }>({});
-  console.log(seasons);
 
   const handleSeasonToggle = (seasonId: number) => {
     if (!episodesBySeason[seasonId]) {

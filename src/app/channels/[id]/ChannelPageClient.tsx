@@ -54,9 +54,7 @@ export default function ChannelPageClient({ channel }: Props) {
     const allGenres: string[] = channelPrograms.flatMap((program: ChannelProgramItem) =>
       program.content_type ? program.content_type.split(',').map(g => g.trim()) : []
     );
-    console.log(channelPrograms);
     const uniqueGenres = [...new Set(allGenres)];
-    console.log(uniqueGenres)
     return uniqueGenres.filter(g => g.length > 0);
   }, [channelPrograms]);
 

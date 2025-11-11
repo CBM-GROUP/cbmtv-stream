@@ -113,10 +113,8 @@ export default function ProgramDetail({ program }: Props) {
   };
 
   useEffect(() => {
-    console.log(program);
     if (program.content_type === "series") {
       getSeriesSeasons(program.id).then((res) => {
-        console.log(res);
         setSeasons(res.data);
       });
     }

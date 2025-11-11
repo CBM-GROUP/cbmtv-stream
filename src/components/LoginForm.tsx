@@ -58,7 +58,6 @@ export const LoginForm = () => {
 
     if (!res.ok) throw new Error('Failed to fetch user info');
     const data = await res.json();
-    console.log(data);
     return data;
   }
 
@@ -154,7 +153,7 @@ export const LoginForm = () => {
             handleGoogleLogin(decodedData);
           }}
           onError={() => {
-            console.log('Login Failed');
+            
           }}
           useOneTap
         />
@@ -303,7 +302,7 @@ export const LoginForm = () => {
                     handleGoogleLogin(decodedData);
                   }}
                   onError={() => {
-                    console.log('Login Failed');
+                    
                   }}
                   useOneTap
                 />

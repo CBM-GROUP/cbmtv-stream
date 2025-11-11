@@ -31,7 +31,6 @@ export const NavBar = () => {
 
   useEffect(() => {
     // You can add any side effects related to user authentication heres
-    console.log("User state changed:", user);
   }, [user]);
 
   return (

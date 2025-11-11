@@ -61,7 +61,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (data: LoginData) => {
     const response = await loginService(data);
-    console.log(response);
     const access_token = response.data.access;
     const refresh_token = response.data.refresh;
     localStorage.setItem("access_token", access_token);

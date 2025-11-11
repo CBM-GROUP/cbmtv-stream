@@ -18,7 +18,6 @@ interface ProgramGridProps {
 
 export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
   const [activeFilter, setActiveFilter] = useState("All");
-  console.log(programs);
 
   const programFilters = new Set(filters);
   programFilters.add("All");
