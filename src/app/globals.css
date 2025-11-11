@@ -123,6 +123,10 @@
     }
 }
 
+* {
+  box-sizing: border-box;
+}
+
 .carousel-container {
     overflow: hidden;
     padding: 0;
