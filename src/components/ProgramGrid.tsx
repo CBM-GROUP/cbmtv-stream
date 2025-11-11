@@ -31,7 +31,7 @@ export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
         );
   return (
     <>
-      <div className="flex items-center space-x-10 px-4 sm:px-12 m-10 sm:my-20 overflow-x-auto py-2 mt-20">
+      <div className="flex items-center space-x-10 px-4 sm:px-12 m-10 sm:my-20 overflow-x-auto py-2 mt-20 pb-20">
         {filters &&
           [...programFilters].sort().map((filter, index) => (
             <span
