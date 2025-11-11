@@ -133,7 +133,7 @@ export const NavBar = () => {
                     {/*<Image src="/images/CBM TV Yellow Logo.png" width={200} height={200} className="h-10 w-auto" alt="CMB TV Logo" />*/}
                   </SheetTitle>
                 </SheetHeader>
-                <div className="py-4 h-screen">
+                <div className="py-4">
                   <div className="mt-6 flex flex-col items-center space-y-4 h-full justify-between">
                     {user && (
                       <>
