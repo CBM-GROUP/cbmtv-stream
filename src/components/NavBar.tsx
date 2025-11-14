@@ -24,9 +24,9 @@ import { Menu, Power } from "lucide-react";
 export const NavBar = () => {
   const { user, login, logout } = useAuth();
   const links = [
-    { href: "/", label: "CBM Stream Bird" },
-    { href: "/channels", label: "CBM Channel Box" },
-    { href: "/programs", label: "CBM Trends" },
+    { href: "/", label: "Stream" },
+    { href: "/channels", label: "Channels" },
+    { href: "/programs", label: "Trends" },
   ];
 
   useEffect(() => {
