@@ -6,8 +6,7 @@ type Props = {
 };
 
 export default async function ChannelPage({ params }: Props) {
-  const { id } = params;
-  console.log('Fetching channel with id:', id);
+  const { id } = await params;
 
   let channel = null;
   try {
@@ -16,7 +15,7 @@ export default async function ChannelPage({ params }: Props) {
     console.log('Fetched channel data:', channel);
   } catch (error) {
     console.error('Error fetching channel:', error);
-    // You could return a not-found page here
+    
     return <div>Channel not found</div>;
   }
 

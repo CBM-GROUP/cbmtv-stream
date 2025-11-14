@@ -63,7 +63,7 @@ const ProfileEditForm = () => {
       };
       reader.readAsDataURL(file);
 
-      const response = await axios.post(
+      const response = await apiClient.post(
         "https://development.autofore.com/api/upload-image",
         formData,
         {
