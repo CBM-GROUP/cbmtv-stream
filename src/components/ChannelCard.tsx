@@ -5,7 +5,7 @@ const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 
 interface Props {
   title: string;
-  slug: string;
+  id: string;
   image: string;
   isLive?: boolean;
   viewersCount?: number;
@@ -13,14 +13,14 @@ interface Props {
 
 export default function ChannelCard({ 
   title, 
-  slug, 
+  id, 
   image, 
   isLive = false, 
   viewersCount = 0 
 }: Props) {
   return (
     <Link 
-      href={`/channels/${slug}`}
+      href={`/channels/${id}`}
       className="block group rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
       aria-label={`Watch ${title} channel`}
     >

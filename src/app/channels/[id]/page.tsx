@@ -7,11 +7,13 @@ type Props = {
 
 export default async function ChannelPage({ params }: Props) {
   const { id } = params;
+  console.log('Fetching channel with id:', id);
 
   let channel = null;
   try {
     const response = await getChannelById(id);
     channel = response.data;
+    console.log('Fetched channel data:', channel);
   } catch (error) {
     console.error('Error fetching channel:', error);
     // You could return a not-found page here
