@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { redirect } from "next/navigation";
 
 const ProfileEditForm = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,8 +98,24 @@ const ProfileEditForm = () => {
     }
 
     if (Object.keys(changedFields).length > 0) {
+  
       try {
-        await apiClient.patch(`/api/accounts/users/${user.id}/`, changedFields);
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          setStatus({ type: "error", message: "Not authenticated." });
+          return;
+        }
+
+        const response = await axios.patch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/accounts/users/${user.id}/`,
+          changedFields,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        console.log("Profile update response:", response.data);
+        
+        updateUser(response.data);
         setStatus({
           type: "success",
           message: "Profile updated successfully!",
@@ -194,10 +210,11 @@ const ProfileEditForm = () => {
             />
           </div>
           <div>
-            <div className="flex items-center space-x-4">
+            <Label>Profile Picture</Label>
+            <div className="flex items-center space-x-4 mt-3">
               {user?.image && (
                 <>
-                  <Label>Profile Picture</Label>
+                  
                   <img
                     src={
                       imagePreview ||
@@ -205,7 +222,7 @@ const ProfileEditForm = () => {
                       "/images/default-avatar.png"
                     }
                     alt="Profile"
-                    className="w-20 h-20 rounded-full text-transparent"
+                    className="w-20 h-20 shrink-0 object-cover rounded-full text-transparent"
                   />
                 </>
               )}

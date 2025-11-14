@@ -36,7 +36,10 @@ export const LoginForm = () => {
       try {
         const response = await apiClient.post("/api/accounts/login/", { email, password });
         if (response.data) {
-          const { user, access_token, refresh_token } = response.data;
+          console.log("Login response data:", response.data);
+          const user = response.data.user;
+          const access_token = response.data.access;
+          const refresh_token = response.data.refresh;
           login(user, access_token, refresh_token);
           router.push('/'); // Redirect to home page
         }
@@ -69,7 +72,10 @@ export const LoginForm = () => {
         google_id: decodedData.sub
       });
       if (response.data) {
-        const { user, access_token, refresh_token } = response.data;
+        const user = response.data.user;
+        const access_token = response.data.access;
+        const refresh_token = response.data.refresh;
+
         login(user, access_token, refresh_token);
         router.push('/'); // Redirect to home page
       }
@@ -153,7 +159,7 @@ export const LoginForm = () => {
             handleGoogleLogin(decodedData);
           }}
           onError={() => {
-            
+
           }}
           useOneTap
         />
@@ -302,7 +308,7 @@ export const LoginForm = () => {
                     handleGoogleLogin(decodedData);
                   }}
                   onError={() => {
-                    
+
                   }}
                   useOneTap
                 />

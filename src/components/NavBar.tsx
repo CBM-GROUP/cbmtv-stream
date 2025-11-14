@@ -69,10 +69,10 @@ export const NavBar = () => {
                         width={40}
                         height={40}
                         alt="User Avatar"
-                        className="rounded-full cursor-pointer"
+                        className="rounded-lg cursor-pointer w-12 h-12 object-cover shrink-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-yellow-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
+                      <div className="w-10 h-10 rounded-lg bg-yellow-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
                         {user.name?.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -144,7 +144,7 @@ export const NavBar = () => {
                               width={40}
                               height={40}
                               alt="User Avatar"
-                              className="rounded-full cursor-pointer h-20 w-20"
+                              className="rounded-full cursor-pointer h-20 w-20 object-cover shrink-0 grow-0"
                             />
                           ) : (
                             <div className="w-16 h-16 rounded-full bg-yellow-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
