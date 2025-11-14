@@ -43,6 +43,7 @@ export const Searchbar = () => {
         const searchResult = await index.search(searchTerm);
         setResults(searchResult.hits.map((hit) => {
           const meiliHit = hit as MeiliSearchHit;
+          console.log('MeiliSearch hit:', meiliHit);
           return {
             id: meiliHit.id,
             title: meiliHit.title,
@@ -84,7 +85,7 @@ export const Searchbar = () => {
               ))}
             </ul>
           ) : (
-            <div className="px-4 py-2 text-black">No results found.</div>
+            <div className="px-4 py-2 text-black">Searching...</div>
           )}
         </div>
       )}
