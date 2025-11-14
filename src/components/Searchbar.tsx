@@ -78,7 +78,7 @@ export const Searchbar = () => {
             <ul className="py-1">
               {results.map((hit) => (
                 <li key={hit.id} className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-black">
-                  <Link href={`programs/${hit.id}`}><div className="font-normal">{hit.title}</div>
+                  <Link href={`/programs/${hit.id}`}><div className="font-normal">{hit.title}</div>
                     <div className="text-sm text-gray-600">{hit.description}</div></Link>
                 </li>
               ))}
