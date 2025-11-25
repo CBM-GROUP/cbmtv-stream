@@ -8,6 +8,10 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+
   "dependencies": {
     "@meilisearch/instant-meilisearch": "^0.28.0",
     "@mux/mux-player-react": "^3.6.1",
