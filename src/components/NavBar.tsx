@@ -24,9 +24,9 @@ import { Menu, Power } from "lucide-react";
 export const NavBar = () => {
   const { user, login, logout } = useAuth();
   const links = [
-    { href: "/", label: "Stream" },
-    { href: "/channels", label: "Channels" },
-    { href: "/programs", label: "Trends" },
+    { href: "/", label: "CBM Stream Bird" },
+    { href: "/channels", label: "CBM Channel Box" },
+    { href: "/programs", label: "CBM Trends" },
   ];
 
   useEffect(() => {
@@ -39,10 +39,10 @@ export const NavBar = () => {
         <div className="flex items-center space-x-12">
           <Link href="/">
             <Image
-              src="/images/CBM TV Yellow Logo.png"
+              src="/images/cbm logo (1).png"
               width={500}
               height={500}
-              className="h-14 w-auto"
+              className="h-14 w-32 object-cover object-center"
               alt="CMB TV Logo"
             />
           </Link>
