@@ -93,10 +93,17 @@ export interface Advert {
 }
 
 export interface Program {
-  thumbnail: string;
-  title: string;
   id: string;
   content_type: string;
   channel: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  streaming_link: string;
+  trailer_link?: string;
+  duration: string;
+  director: string;
+  writer?: string; 
   genre?: string;
+  size?: string;
 }

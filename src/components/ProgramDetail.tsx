@@ -2,25 +2,15 @@
 
 import SeasonsAccordion from "@/components/SeasonsAccordion";
 import { Button } from "@/components/ui/button";
+import { useContent } from "@/hooks/useContent";
 import { getSeriesSeasons } from "@/services/series";
+import type { Program } from "@/types";
 import MuxPlayer from "@mux/mux-player-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import Image from "next/image";
-
-type Program = {
-  id: number;
-  content_type: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  streaming_link: string;
-  trailer_link?: string;
-  duration: string;
-  director: string;
-  writer?: string;
-  genre?: string;
-  size?: string;
-};
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ProgramCard } from "./ProgramCard";
 
 type Season = {
   id: number;
@@ -91,11 +81,14 @@ const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 
 export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [currentVideoUrl, setCurrentVideoUrl] = useState(
-    program.trailer_link || program.streaming_link
-  );
+  const [currentVideoUrl, setCurrentVideoUrl] = useState();
   const [isCopied, setIsCopied] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
+  const [playbackType, setPlayBackType] = useState<"streaming" | "ad" | null>(
+    "ad"
+  );
+
+  const { data: channelContent, isLoading: contentLoading } = useContent();
 
   const handleShare = () => {
     const url = window.location.href;
@@ -113,12 +106,23 @@ export default function ProgramDetail({ program }: Props) {
   };
 
   useEffect(() => {
+    console.log(program);
     if (program.content_type === "series") {
       getSeriesSeasons(program.id).then((res) => {
         setSeasons(res.data);
       });
     }
   }, [program]);
+
+  useEffect(() => {
+    if (program.trailer_link) {
+      setCurrentVideoUrl(program.trailer_linkk);
+      setPlayBackType("streaming");
+    } else {
+      setCurrentVideoUrl(program.streaming_link);
+      setPlayBackType("streaming");
+    }
+  });
 
   useEffect(() => {
     if (videoPlayerRef.current) {
@@ -139,17 +143,56 @@ export default function ProgramDetail({ program }: Props) {
       ? getYouTubeVideoId(currentVideoUrl)
       : null;
 
+  const channelPrograms = useMemo(() => {
+    if (!channelContent || !program?.channel) return [];
+    return channelContent.filter(
+      (p) => p.channel === program.channel && p.id !== program.id
+    );
+  }, [channelContent, program?.channel]);
+
+  const playNext = () => {
+    if (channelPrograms.length > 0) {
+      const nextProgram = channelPrograms[0];
+      program = nextProgram;
+      setCurrentVideoUrl(nextProgram.streaming_link);
+      setPlayBackType("streaming");
+    }
+  };
+
+  useEffect(() => {
+    console.log("Similar Programs", channelPrograms);
+  }, [channelPrograms]);
+
   return (
     <>
-      <div ref={videoPlayerRef} className="aspect-video mb-8 w-screen bg-black">
+      <div
+        ref={videoPlayerRef}
+        className="mb-8 w-screen aspect-[16:9] bg-black sticky top-0 z-100"
+      >
         {urlType === "mux" && playbackId && (
           <MuxPlayer
-            className="w-full h-full rounded-none"
+            className="w-full rounded-none"
             playbackId={playbackId}
             title={program.title}
             autoPlay
-            onEnded={() => setCurrentVideoUrl(program.streaming_link)}
+            onEnded={() => {
+              if (program.streaming_link) {
+                {
+                  setCurrentVideoUrl(program.streaming_link);
+                  setPlayBackType("streaming");
+                  playNext();
+                }
+              }
+            }}
           />
+        )}
+        {playbackType === "ad" && (
+          <button
+            onClick={() => setCurrentVideoUrl(program.streaming_link)}
+            className="absolute bottom-20 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
+          >
+            Skip
+          </button>
         )}
         {urlType === "youtube" && youtubeId && (
           <iframe
@@ -157,100 +200,139 @@ export default function ProgramDetail({ program }: Props) {
             src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
             title="YouTube video player"
             frameBorder="0"
-            onEnded={() => setCurrentVideoUrl(program.streaming_link)}
+            onEnded={() => {
+              setCurrentVideoUrl(program.streaming_link);
+              setPlayBackType("streaming");
+            }}
+            onLoad={() => {
+              if (playbackType === "ad") {
+                setPlayBackType("ad");
+              }
+            }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           ></iframe>
         )}
       </div>
-      <div className="container mx-auto px-4 mt-14 pb-24">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-20 items-start">
-          <div className="md:col-span-3">
-            <h2 className="text-3xl font-bold mb-6 text-white/80">Synopsis</h2>
-            <p className="text-lg text-white/60 mb-10 leading-relaxed">
-              {program.description}
-            </p>
+      {playbackType != "streaming" && (
+        <div className="container mx-auto px-4 mt-14 pb-24">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-20 items-start">
+            <div className="md:col-span-3">
+              <h2 className="text-3xl font-bold mb-6 text-white/80">
+                Synopsis
+              </h2>
+              <p className="text-lg text-white/60 mb-10 leading-relaxed">
+                {program.description}
+              </p>
 
-            <h2 className="text-3xl font-bold mb-6 text-white/80">Overview</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div>
-                <h3 className="text-xl font-semibold text-white/80">
-                  Director
-                </h3>
-                <p className="text-white/70 mt-1 text-white/60">
-                  {program.director || "N/A"}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-white/80">Writer</h3>
-                <p className="text-white/70 mt-1 text-white/60">
-                  {program.writer || "N/A"}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-white/80">Genre</h3>
-                <p className="text-white/70 mt-1 text-white/60">
-                  {program.genre || "N/A"}
-                </p>
-              </div>
-            </div>
-
-            {program.content_type === "series" && (
-              <div className="mt-10">
-                <h2 className="text-3xl font-bold mb-6 text-white/80">
-                  Seasons
-                </h2>
-                <SeasonsAccordion
-                  seasons={seasons}
-                  onEpisodeSelect={setCurrentVideoUrl}
-                />
-              </div>
-            )}
-          </div>
-          <div className="md:col-span-2">
-            <div className="flex items-start h-fit w-full border-b border-white/10 pb-10 mb-10">
-              <div className="flex flex-col sm:flex-row items-start w-full space-y-6 sm:space-y-0 sm:space-x-6">
-                <Image
-                  src={program.thumbnail || PLACEHOLDER_IMAGE}
-                  alt={`${program.title} poster`}
-                  width={300}
-                  height={450}
-                  className="h-40 aspect-3/4 w-auto rounded-md"
-                />
-                <div className="w-full">
-                  <h1 className="text-3xl sm:text-4xl font-bold mb-4">
-                    {program.title}
-                  </h1>
-                  <p className="text-sm text-white/70 flex flex-col space-y-2 mt-3">
-                    <span>
-                      <span className="text-white font-semibold">
-                        Duration:
-                      </span>{" "}
-                      {program.duration || "N/A"}
-                    </span>
-                    <span>{program.genre || "N/A"}</span>
+              <h2 className="text-3xl font-bold mb-6 text-white/80">
+                Overview
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div>
+                  <h3 className="text-xl font-semibold text-white/80">
+                    Director
+                  </h3>
+                  <p className="text-white/70 mt-1 text-white/60">
+                    {program.director || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white/80">
+                    Writer
+                  </h3>
+                  <p className="text-white/70 mt-1 text-white/60">
+                    {program.writer || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white/80">Genre</h3>
+                  <p className="text-white/70 mt-1 text-white/60">
+                    {program.genre || "N/A"}
                   </p>
                 </div>
               </div>
+
+              {program.content_type === "series" && (
+                <div className="mt-10">
+                  <h2 className="text-3xl font-bold mb-6 text-white/80 line-clamp-2">
+                    Seasons
+                  </h2>
+                  <SeasonsAccordion
+                    seasons={seasons}
+                    onEpisodeSelect={() => setCurrentVideoUrl(program?.streaming_link)}
+                  />
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-6 mt-6 w-full">
-              <Button
-                onClick={() => setCurrentVideoUrl(program.streaming_link)}
-                disabled={currentVideoUrl === program.streaming_link}
-                className="rounded-lg bg-gradient-to-tr to-chart-5/60 from-chart-4/60 h-12 w-full text-md text-black uppercase cursor-pointer m-0 flex items-center justify-center"
-              >
-                Watch now
-              </Button>
-              <Button
-                onClick={handleShare}
-                className="rounded-lg hover:bg-white/60 bg-transparent to-chart-5 from-chart-4 h-12 w-full text-md text-white/40 font-light uppercase cursor-pointer border border-white/20"
-              >
-                {isCopied ? "Copied!" : "Share"}
-              </Button>
+            <div className="md:col-span-2">
+              <div className="flex items-start h-fit w-full border-b border-white/10 pb-10 mb-10">
+                <div className="flex flex-col sm:flex-row items-start w-full space-y-6 sm:space-y-0 sm:space-x-6">
+                  <Image
+                    src={program.thumbnail || PLACEHOLDER_IMAGE}
+                    alt={`${program.title} poster`}
+                    width={300}
+                    height={450}
+                    className="h-40 aspect-3/4 w-auto rounded-md"
+                  />
+                  <div className="w-full">
+                    <h1 className="text-3xl sm:text-4xl font-bold mb-4 line-clamp-2">
+                      {program.title}
+                    </h1>
+                    <p className="text-sm text-white/70 flex flex-col space-y-2 mt-3">
+                      <span>
+                        <span className="text-white font-semibold">
+                          Duration:
+                        </span>{" "}
+                        {program.duration || "N/A"}
+                      </span>
+                      <span>{program.genre || "N/A"}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-6 mt-6 w-full">
+                <Button
+                  onClick={() => setCurrentVideoUrl(program.streaming_link)}
+                  disabled={currentVideoUrl === program.streaming_link}
+                  className="rounded-lg bg-gradient-to-tr to-chart-5/60 from-chart-4/60 h-12 w-full text-md text-black uppercase cursor-pointer m-0 flex items-center justify-center"
+                >
+                  Watch now
+                </Button>
+                <Button
+                  onClick={handleShare}
+                  className="rounded-lg hover:bg-white/60 bg-transparent to-chart-5 from-chart-4 h-12 w-full text-md text-white/40 font-light uppercase cursor-pointer border border-white/20"
+                >
+                  {isCopied ? "Copied!" : "Share"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+      {channelPrograms.length > 0 && (
+        <div className="w-full mx-auto p-5 lg:p-14 mb-24">
+          <div className="mb-8 flex items-center justify-between">
+            <h3 className="text-xl font-medium">Up next</h3>
+            <Link href="/programs" className="font-normal text-md flex items-center space-x-3">
+              <small>More</small>
+              <ChevronRight size={18} strokeWidth={1.5}/>
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
+            {channelPrograms.map((program, index) => (
+              <ProgramCard
+                key={index}
+                {...program}
+                href={`/programs/${program.id}`}
+                src={program.thumbnail}
+                slug={program.channel}
+                alt={program.title}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

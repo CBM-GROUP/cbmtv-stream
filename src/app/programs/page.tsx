@@ -43,7 +43,7 @@ export default async function ProgramsPage() {
   }
 
   return (
-    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-10 px-4 sm:px-12 mb-24">
+    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-10 px-4 sm:px-12 mt-10 mb-24">
       {programs.map((program: ProgramCardProps, index: number) => (
         <ProgramCard
           href={`/programs/${program.id}`}

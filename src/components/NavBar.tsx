@@ -1,7 +1,9 @@
 "use client";
-import Image from "next/image";
-import Link from "next/link";
-import { Button } from "./ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Sheet,
   SheetContent,
@@ -10,23 +12,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
-import { Searchbar } from "./Searchbar";
-import { LoginForm } from "./LoginForm";
 import { Menu, Power } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect } from "react";
+import { LoginForm } from "./LoginForm";
+import { Searchbar } from "./Searchbar";
+import { Button } from "./ui/button";
 
 export const NavBar = () => {
   const { user, login, logout } = useAuth();
   const links = [
-    { href: "/", label: "CBM Stream Bird" },
-    { href: "/channels", label: "CBM Channel Box" },
-    { href: "/programs", label: "CBM Trends" },
+    { href: "/", label: "Stream Bird" },
+    { href: "/channels", label: "Channel Box" },
+    { href: "/programs", label: "Trends" },
   ];
 
   useEffect(() => {

@@ -3,12 +3,12 @@
 import ChannelCarousel from "@/components/ChannelCarousel";
 import { LanderCarousel } from "@/components/LanderCarousel";
 import { ProgramGrid } from "@/components/ProgramGrid";
+import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
 import { useContent } from "@/hooks/useContent";
 import { useMovies } from "@/hooks/useMovies";
+import { Program } from "@/types";
 import { useMemo } from "react";
-import { Advert, Program } from "@/types";
-import { useAds } from "@/hooks/useAds";
 
 interface Movie {
   thumbnail: string;

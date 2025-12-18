@@ -3,11 +3,17 @@ import { Advert } from "@/types";
 import MuxPlayer from "@mux/mux-player-react";
 import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Pause,
+  Play,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { getPlaybackId } from "@/lib/helpers";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface LanderCarouselProps {
   slides: Advert[];
@@ -16,10 +22,77 @@ interface LanderCarouselProps {
 const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 const IMAGE_SLIDE_DURATION = 5000; // 5 seconds for images
 
+// NEW: Create a memoized Slide component
+const Slide = React.memo(function Slide({
+  slide,
+  index,
+  onVideoEnded,
+  onVideoPlay,
+  onVideoPause,
+  setPlayerRef,
+  togglePlayPause,
+  isPlaying,
+}: {
+  slide: Advert;
+  index: number;
+  onVideoEnded: () => void;
+  onVideoPlay: () => void;
+  onVideoPause: () => void;
+  setPlayerRef: (el: React.ComponentRef<typeof MuxPlayer> | null) => void;
+  togglePlayPause: () => void;
+  isPlaying: boolean;
+}) {
+  return (
+    <div className="embla__slide relative w-screen aspect-16/9 flex-shrink-0">
+      {/* ---------- MEDIA (video or image) ---------- */}
+      {slide.stream_link ? (
+        <MuxPlayer
+          ref={setPlayerRef}
+          className="w-full object-cover"
+          playbackId={getPlaybackId(slide.stream_link) ?? ""}
+          title={slide.advert_name}
+          autoPlay={true}
+          muted
+          onEnded={onVideoEnded}
+          onPlay={onVideoPlay}
+          onPause={onVideoPause}
+          streamType="on-demand"
+          style={{ aspectRatio: "16/9", zIndex: 0 }}
+        />
+      ) : (
+        <Image
+          fill
+          className="object-cover object-center"
+          src={slide.advert_thumbnail || PLACEHOLDER_IMAGE}
+          alt={slide.advert_name}
+          sizes="100vw"
+          priority={index === 0}
+        />
+      )}
+      <div className="w-full h-1/2 bg-gradient-to-b to-black/50 from-transparent absolute bottom-22 left-0 flex items-end justify-start z-10 p-14">
+        <div className="lg:w-1/3">
+          <h1 className="text-white text-3xl font-bold">{slide.advert_name}</h1>
+          <p className="mt-2">{slide?.advert_description}</p>
+          {/* Play/Pause Button */}
+          <button
+            onClick={togglePlayPause}
+            className="p-3 rounded-md bg-yellow-500/70 hover:bg-yellow-500 text-white transition-colors flex items-center space-x-2 mt-4 cursor-pointer"
+          >
+            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            <span className="text-sm pr-3">{isPlaying ? "Pause" : "Play"}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   const autoplayRef = useRef<ReturnType<typeof Autoplay> | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const playerRefs = useRef<(React.ComponentRef<typeof MuxPlayer> | null)[]>([]);
+  const playerRefs = useRef<(React.ComponentRef<typeof MuxPlayer> | null)[]>(
+    []
+  );
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
     Autoplay({
@@ -30,6 +103,9 @@ export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   ]);
 
   const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
   // Clear any pending timeout
   const clearAdvanceTimeout = () => {
@@ -50,39 +126,148 @@ export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   // Handle video end
   const onVideoEnded = useCallback(() => {
     if (!emblaApi) return;
+
+    console.log("Video ended, moving to next slide");
     setActiveVideoIndex(null);
-    emblaApi.plugins().autoplay?.reset(); // Resume autoplay
-    scheduleNextSlide(IMAGE_SLIDE_DURATION); // Advance after image delay
+    setIsVideoPlaying(false);
+
+    // Immediately move to next slide after video ends
+    emblaApi.scrollNext();
   }, [emblaApi]);
+
+  // Handle video play state
+  const onVideoPlay = useCallback(() => {
+    setIsVideoPlaying(true);
+    setIsPlaying(true);
+  }, []);
+
+  const onVideoPause = useCallback(() => {
+    setIsVideoPlaying(false);
+    setIsPlaying(false);
+  }, []);
 
   // Handle slide selection
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
 
     const idx = emblaApi.selectedScrollSnap();
+    setCurrentIndex(idx);
     const slide = slides[idx];
     const player = playerRefs.current[idx];
 
-    // Pause all videos
-    playerRefs.current.forEach((p) => p?.pause());
+    // Pause all other videos
+    playerRefs.current.forEach((p, index) => {
+      if (index !== idx && p) {
+        p.pause();
+      }
+    });
 
     // Stop any pending timeout
     clearAdvanceTimeout();
 
     if (slide?.stream_link && player) {
       // Video slide
+      console.log("Switching to video slide:", idx);
       setActiveVideoIndex(idx);
       emblaApi.plugins().autoplay?.stop();
+
+      // Reset and play video
       player.currentTime = 0;
-      player.play().catch(() => {});
-      // Autoplay will resume on 'ended' event
+
+      // Try to play the video
+      const playVideo = async () => {
+        try {
+          await player.play();
+          setIsPlaying(true);
+          setIsVideoPlaying(true);
+          console.log("Video auto-play started");
+        } catch (error) {
+          console.error("Failed to auto-play video:", error);
+          // If auto-play fails, resume normal carousel timing
+          emblaApi.plugins().autoplay?.reset();
+          scheduleNextSlide(IMAGE_SLIDE_DURATION);
+        }
+      };
+
+      playVideo();
     } else {
       // Image slide
+      console.log("Switching to image slide:", idx);
       setActiveVideoIndex(null);
-      emblaApi.plugins().autoplay?.reset();
-      scheduleNextSlide(IMAGE_SLIDE_DURATION);
+      setIsVideoPlaying(false);
+
+      if (isPlaying) {
+        emblaApi.plugins().autoplay?.reset();
+        scheduleNextSlide(IMAGE_SLIDE_DURATION);
+      }
     }
-  }, [emblaApi, slides]);
+  }, [emblaApi, slides, isPlaying]);
+
+  // Toggle play/pause
+  const togglePlayPause = useCallback(() => {
+    if (!emblaApi) return;
+
+    if (isPlaying) {
+      // Pause everything
+      setIsPlaying(false);
+      emblaApi.plugins().autoplay?.stop();
+      clearAdvanceTimeout();
+
+      // Pause video if active
+      if (activeVideoIndex !== null) {
+        const player = playerRefs.current[activeVideoIndex];
+        if (player) {
+          player.pause();
+          setIsVideoPlaying(false);
+        }
+      }
+    } else {
+      // Play everything
+      setIsPlaying(true);
+
+      const slide = slides[currentIndex];
+      if (slide?.stream_link && activeVideoIndex !== null) {
+        // Resume video
+        const player = playerRefs.current[activeVideoIndex];
+        if (player) {
+          player
+            .play()
+            .then(() => {
+              setIsVideoPlaying(true);
+            })
+            .catch(console.error);
+        }
+      } else {
+        // Resume carousel autoplay for images
+        emblaApi.plugins().autoplay?.reset();
+        scheduleNextSlide(IMAGE_SLIDE_DURATION);
+      }
+    }
+  }, [emblaApi, isPlaying, activeVideoIndex, currentIndex, slides]);
+
+  // Navigate to specific slide
+  const scrollTo = useCallback(
+    (index: number) => {
+      if (!emblaApi) return;
+
+      // Pause current video if any
+      if (activeVideoIndex !== null) {
+        const player = playerRefs.current[activeVideoIndex];
+        if (player) {
+          player.pause();
+          setIsVideoPlaying(false);
+        }
+      }
+
+      emblaApi.scrollTo(index);
+    },
+    [emblaApi, activeVideoIndex]
+  );
+
+  // Initialize player refs array
+  useEffect(() => {
+    playerRefs.current = playerRefs.current.slice(0, slides.length);
+  }, [slides.length]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -107,66 +292,49 @@ export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   }, [emblaApi, onSelect]);
 
   return (
-    <>
+    <div className="relative group">
+      {/* Main carousel container */}
       <div
-        className="overflow-hidden w-full mx-auto flex items-center justify-center h-[50vh] md:h-[70vh]"
+        className="overflow-hidden w-full mx-auto flex items-center justify-center md:max-h-[70vh] sticky"
         ref={emblaRef}
       >
-        <div className="flex w-full h-full">
-          {slides?.map((slide: Advert, index: number) => (
-            <div
-              className="embla__slide relative h-full w-screen flex-shrink-0"
-              key={index}
-            >
-              {/* ---------- MEDIA (video or image) ---------- */}
-              {slide.stream_link ? (
-                <MuxPlayer
-                  ref={(el) => {
-                    playerRefs.current[index] = el;
-                  }}
-                  className="w-full h-full object-cover"
-                  playbackId={getPlaybackId(slide.stream_link) ?? ""}
-                  title={slide.advert_name}
-                  autoPlay={false}
-                  muted
-                  onEnded={onVideoEnded}
-                />
-              ) : (
-                <Image
-                  fill
-                  className="object-cover object-center"
-                  src={slide.advert_thumbnail || PLACEHOLDER_IMAGE}
-                  alt={slide.advert_name}
-                  sizes="100vw"
-                  priority
-                />
-              )}
-
-              {/* ---------- OVERLAY TEXT & CTA ---------- */}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white p-4 sm:p-8 md:p-12 w-full">
-                <div className="flex items-end justify-between">
-                  <div className="w-full md:w-3/5 lg:w-2/5">
-                    <h1 className="text-xl sm:text-2xl md:text-2xl capitalize font-semibold">
-                      {slide.advert_name}
-                    </h1>
-                    <p className="text-white/60 text-base sm:text-lg my-4 line-clamp-2 capitalize">
-                      {slide.advert_description}
-                    </p>
-                  </div>
-                  <Link
-                    href={slide.advert_link || "#"}
-                    target="_blank"
-                    className="flex items-center space-x-2 text-sm font-light text-white/60"
-                  >
-                    <span>Explore</span>
-                    <ArrowRight size={16} strokeWidth={1.5} />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {slides?.map((slide: Advert, index: number) => (
+          <Slide
+            key={slide.id ?? index}
+            slide={slide}
+            index={index}
+            onVideoEnded={onVideoEnded}
+            onVideoPlay={onVideoPlay}
+            onVideoPause={onVideoPause}
+            setPlayerRef={(el) => {
+              playerRefs.current[index] = el;
+            }}
+            isPlaying={isPlaying}
+            togglePlayPause={togglePlayPause}
+          />
+        ))}
       </div>
-    </>
+
+      {/* Navigation Controls - Only show on hover/touch */}
+      <div className="absolute inset-x-4 top-1/2 transform -translate-y-1/2 flex justify-between items-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        {/* Previous Button */}
+        <button
+          onClick={() => emblaApi?.scrollPrev()}
+          className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm"
+          aria-label="Previous slide"
+        >
+          <ChevronLeft size={24} />
+        </button>
+
+        {/* Next Button */}
+        <button
+          onClick={() => emblaApi?.scrollNext()}
+          className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm"
+          aria-label="Next slide"
+        >
+          <ChevronRight size={24} />
+        </button>
+      </div>
+    </div>
   );
 };
