@@ -72,7 +72,7 @@ export const NavBar = () => {
                         className="rounded-lg cursor-pointer w-12 h-12 object-cover shrink-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-yellow-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
+                      <div className="w-10 h-10 rounded-lg bg-cyan-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
                         {user.name?.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -97,7 +97,7 @@ export const NavBar = () => {
             ) : (
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button className="rounded-lg bg-gradient-to-tr to-chart-5 from-chart-4 h-12 py-6 min-w-32 text-black capitalize">
+                  <Button className="rounded-lg bg-[#01BEA5] h-12 py-6 min-w-32 text-black capitalize">
                     Sign in
                   </Button>
                 </SheetTrigger>
@@ -130,7 +130,7 @@ export const NavBar = () => {
               <SheetContent side="right" className="border-none p-4 h-full ">
                 <SheetHeader>
                   <SheetTitle>
-                    {/*<Image src="/images/CBM TV Yellow Logo.png" width={200} height={200} className="h-10 w-auto" alt="CMB TV Logo" />*/}
+                    {/*<Image src="/images/CBM TV cyan Logo.png" width={200} height={200} className="h-10 w-auto" alt="CMB TV Logo" />*/}
                   </SheetTitle>
                 </SheetHeader>
                 <div className="py-4">
@@ -147,7 +147,7 @@ export const NavBar = () => {
                               className="rounded-full cursor-pointer h-20 w-20 object-cover shrink-0 grow-0"
                             />
                           ) : (
-                            <div className="w-16 h-16 rounded-full bg-yellow-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
+                            <div className="w-16 h-16 rounded-full bg-cyan-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
                               {user.name?.charAt(0).toUpperCase()}
                             </div>
                           )}

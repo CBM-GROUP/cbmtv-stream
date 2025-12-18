@@ -48,7 +48,7 @@ export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
               key={index}
               className={`text-sm whitespace-nowrap cursor-pointer capitalize ${
                 activeFilter === filter
-                  ? "text-[#ffd700] font-semibold"
+                  ? "text-[#01BEA5] font-semibold"
                   : "text-white/60 font-normal"
               }`}
               onClick={() => setActiveFilter(filter)}

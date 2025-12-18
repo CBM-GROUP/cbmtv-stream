@@ -69,18 +69,17 @@ const Slide = React.memo(function Slide({
           priority={index === 0}
         />
       )}
-      <div className="w-full h-1/2 bg-gradient-to-b to-black/50 from-transparent absolute bottom-22 left-0 flex items-end justify-start z-10 p-14">
+      <div className="w-full h-1/2 bg-gradient-to-b to-black/60 from-transparent absolute bottom-22 left-0 flex items-end justify-start z-10 p-14">
         <div className="lg:w-1/3">
           <h1 className="text-white text-3xl font-bold">{slide.advert_name}</h1>
           <p className="mt-2">{slide?.advert_description}</p>
           {/* Play/Pause Button */}
-          <button
-            onClick={togglePlayPause}
-            className="p-3 rounded-md bg-yellow-500/70 hover:bg-yellow-500 text-white transition-colors flex items-center space-x-2 mt-4 cursor-pointer"
-          >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-            <span className="text-sm pr-3">{isPlaying ? "Pause" : "Play"}</span>
-          </button>
+          <Link href={slide.advert_link || "/"}>
+            <button className="p-3 rounded-md bg-yellow-500/70 hover:bg-[#01BEA5] text-white transition-colors flex items-center space-x-2 mt-4 cursor-pointer">
+              <Play size={18} />
+              <span className="pr-5">Watch</span>
+            </button>
+          </Link>
         </div>
       </div>
     </div>

@@ -116,7 +116,7 @@ const Swiper = ({
       <Link href="/channels">
         <Button
           variant="outline"
-          className="absolute -bottom-24  left-1/2 -translate-x-1/2 rounded-lg bg-[#ffd700]/80 border border-[#ffd700]/50 text-black font-semibold h-12 py-6 px-8 capitalize cursor-pointer mt-3"
+          className="absolute -bottom-24  left-1/2 -translate-x-1/2 rounded-lg bg-transparent border border-[#01BEA5] text-[#01BEA5] hover:text-black hover:bg-[#01BEA5] font-semibold h-12 py-6 px-8 capitalize cursor-pointer mt-3"
         >
           <span className=" space-x-3 flex items-center">
             <span className="text-md">Explore All Channels</span>

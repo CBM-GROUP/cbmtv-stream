@@ -80,7 +80,7 @@ export const Footer = () => {
       {/* Logo */}
       <div className="mx-auto flex items-center space-x-5 justify-center">
         <Image
-          src="/images/CBM TV Yellow Logo.png" // make sure this path is correct
+          src="/images/cbm logo (1).png" // make sure this path is correct
           alt="CBM TV Logo"
           width={100}
           height={40}
@@ -90,7 +90,7 @@ export const Footer = () => {
       {/* CBM Brothers Product Text */}
       <p className="text-[#ccc]/50">
         Copyright &copy; {new Date().getFullYear()} CBM TV – A product of CBM
-        Brothers. All rights reserved.
+        Group. All rights reserved.
       </p>
     </footer>
   );
