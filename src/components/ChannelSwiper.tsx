@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -59,7 +59,7 @@ const Swiper = ({
   // Custom Arrow Components
   const NextArrow = ({ onClick }: ArrowProps) => (
     <div
-      className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 cursor-pointer text-white opacity-100 hover:opacity-100 text-2xl h-12 w-12 flex items-center justify-center rounded-full hover:bg-white/10 "
+      className="max-md:hidden absolute -right-3 top-1/2 -translate-y-1/2 z-10 cursor-pointer text-white opacity-100 hover:opacity-100 text-2xl h-12 w-12 flex items-center justify-center rounded-full hover:bg-white/10 "
       onClick={onClick}
     >
       <ArrowRight size={18} />
@@ -68,7 +68,7 @@ const Swiper = ({
 
   const PrevArrow = ({ onClick }: ArrowProps) => (
     <div
-      className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 cursor-pointer text-white opacity-100 hover:opacity-100 text-2xl h-12 w-12 flex items-center justify-center  hover:bg-white/10  rounded-full"
+      className="max-md:hidden absolute -left-3 top-1/2 -translate-y-1/2 z-10 cursor-pointer text-white opacity-100 hover:opacity-100 text-2xl h-12 w-12 flex items-center justify-center  hover:bg-white/10  rounded-full"
       onClick={onClick}
     >
       <ArrowLeft size={18} />
@@ -96,7 +96,7 @@ const Swiper = ({
             key={index}
             className="px-4 py-4 md:py-2 md:px-2"
           >
-            <div className="flex items-center flex-col md:flex-row justify-center md:justify-start md:space-x-4 bg-white/3 p-2 rounded-xl cursor-pointer">
+            <div className="flex items-center flex-col md:flex-row justify-center md:justify-start md:space-x-4 bg-white/3 p-2 max-md:py-6 rounded-xl cursor-pointer">
               <div className="relative h-20 w-20 aspect-square rounded-lg shadow-md overflow-hidden">
                 <Image
                   src={poster.src || "/images/cbmtvwhitelogo.png"}
@@ -114,14 +114,12 @@ const Swiper = ({
         ))}
       </Slider>
       <Link href="/channels">
-        <Button
-          variant="outline"
-          className="absolute -bottom-24  left-1/2 -translate-x-1/2 rounded-lg bg-transparent border border-[#01BEA5] text-[#01BEA5] hover:text-black hover:bg-[#01BEA5] font-semibold h-12 py-6 px-8 capitalize cursor-pointer mt-3"
-        >
+        <button className="absolute -bottom-24  left-1/2 -translate-x-1/2 rounded-lg bg-none text-[#01BEA5] border border-transparent hover:border-[#01BEA5] font-normal h-12 py-6 px-8 capitalize cursor-pointer mt-3 whitespace-nowrap flex items-center justify-center">
           <span className=" space-x-3 flex items-center">
-            <span className="text-md">Explore All Channels</span>
+            <span className="text-sm">Explore All Channels</span>
+            <ChevronRight size={14} />
           </span>
-        </Button>
+        </button>
       </Link>
     </div>
   );

@@ -43,12 +43,15 @@ const Slide = React.memo(function Slide({
   isPlaying: boolean;
 }) {
   return (
-    <div className="embla__slide relative w-screen shrink-0">
+    <div
+      className="embla__slide relative w-screen shrink-0 aspect-square
+  md:aspect-[21/9]"
+    >
       {/* ---------- MEDIA (video or image) ---------- */}
       {slide.stream_link ? (
         <MuxPlayer
           ref={setPlayerRef}
-          className="w-screen object-cover object-center shrink-0"
+          className="w-screen h-full object-cover object-center shrink-0"
           playbackId={getPlaybackId(slide.stream_link) ?? ""}
           title={slide.advert_name}
           autoPlay={true}
@@ -58,8 +61,6 @@ const Slide = React.memo(function Slide({
           onPause={onVideoPause}
           streamType="on-demand"
           style={{
-            width: "100%",
-            aspectRatio: "21 / 9",
             "--media-object-fit": "cover",
             "--media-object-position": "center",
           }}
@@ -67,16 +68,18 @@ const Slide = React.memo(function Slide({
       ) : (
         <Image
           fill
-          className="object-cover object-center w-full aspect-21/9 shrink-0"
+          className="object-cover object-center w-full h-full shrink-0"
           src={slide.advert_thumbnail || PLACEHOLDER_IMAGE}
           alt={slide.advert_name}
           sizes="100vw"
           priority={index === 0}
         />
       )}
-      <div className="w-screen h-1/2 bg-gradient-to-b to-black/60 from-transparent absolute bottom-0 left-0 flex items-end justify-start z-10 p-14">
+      <div className="w-screen h-1/2 bg-gradient-to-b to-black md:to-black/80 from-transparent absolute bottom-0 left-0 flex items-end justify-start z-10 p-6 md:p-14">
         <div className="lg:w-1/3">
-          <h1 className="text-white text-3xl font-bold">{slide.advert_name}</h1>
+          <h1 className="text-white text-xl md:text-3xl font-bold">
+            {slide.advert_name}
+          </h1>
           <p className="mt-2">{slide?.advert_description}</p>
           {/* Play/Pause Button */}
           <Link href={slide.advert_link || "/"}>
