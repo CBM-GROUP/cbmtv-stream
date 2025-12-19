@@ -48,9 +48,9 @@ export const NavBar = () => {
           </Link>
           <nav className="hidden md:flex space-x-6 items-center text-sm">
             {links.map((link, index) => (
-              <Link key={index} href={link.href}>
+              <a key={index} href={link.href}>
                 {link.label}
-              </Link>
+              </a>
             ))}
           </nav>
         </div>
@@ -158,17 +158,17 @@ export const NavBar = () => {
 
                     <nav className="flex items-center text-center flex-col space-y-4">
                       {links.map((link, index) => (
-                        <Link key={index} href={link.href} className="text-lg">
+                        <a key={index} href={link.href} className="text-lg">
                           {link.label}
-                        </Link>
+                        </a>
                       ))}
                       {user && (
-                        <Link
+                        <a
                           href="/profile/edit"
                           className="text-center text-lg"
                         >
                           Profile
-                        </Link>
+                        </a>
                       )}
                     </nav>
                     {user ? (
