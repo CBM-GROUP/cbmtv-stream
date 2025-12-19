@@ -22,7 +22,7 @@ export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
   const programFilters = new Set(filters);
   programFilters.add("All");
 
-  const customLabels = {
+  const customLabels: { [key: string]: string } = {
     All: "All",
     movie: "Movies",
     original: "TV Shows",

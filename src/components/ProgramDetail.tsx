@@ -81,7 +81,7 @@ const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 
 export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [currentVideoUrl, setCurrentVideoUrl] = useState();
+  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | undefined>();
   const [isCopied, setIsCopied] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
   const [playbackType, setPlayBackType] = useState<"streaming" | "ad" | null>(
@@ -116,13 +116,13 @@ export default function ProgramDetail({ program }: Props) {
 
   useEffect(() => {
     if (program.trailer_link) {
-      setCurrentVideoUrl(program.trailer_linkk);
-      setPlayBackType("streaming");
+      setCurrentVideoUrl(program.trailer_link);
+      setPlayBackType("ad");
     } else {
       setCurrentVideoUrl(program.streaming_link);
       setPlayBackType("streaming");
     }
-  });
+  }, [program]);
 
   useEffect(() => {
     if (videoPlayerRef.current) {
@@ -167,11 +167,11 @@ export default function ProgramDetail({ program }: Props) {
     <>
       <div
         ref={videoPlayerRef}
-        className="mb-8 w-screen aspect-[16:9] bg-black sticky top-0 z-100"
+        className="mb-8 w-screen aspect-16:9 bg-black sticky top-0 z-100"
       >
         {urlType === "mux" && playbackId && (
           <MuxPlayer
-            className="w-full rounded-none"
+            className="w-full aspect-16/9 rounded-none"
             playbackId={playbackId}
             title={program.title}
             autoPlay
@@ -188,7 +188,10 @@ export default function ProgramDetail({ program }: Props) {
         )}
         {playbackType === "ad" && (
           <button
-            onClick={() => setCurrentVideoUrl(program.streaming_link)}
+            onClick={() => {
+              setCurrentVideoUrl(program.streaming_link);
+              setPlayBackType("streaming");
+            }}
             className="absolute bottom-20 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
           >
             Skip

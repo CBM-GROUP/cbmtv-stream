@@ -2,6 +2,7 @@
 
 import ChannelCarousel from "@/components/ChannelCarousel";
 import { LanderCarousel } from "@/components/LanderCarousel";
+import Preloader from "@/components/Preloader";
 import { ProgramGrid } from "@/components/ProgramGrid";
 import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
@@ -43,7 +44,7 @@ export default function HomePage() {
         title: program.title,
         slug: `programs/${program.id}`,
         genre: program.content_type,
-      }
+      };
     });
   }, [content]);
 
@@ -65,7 +66,7 @@ export default function HomePage() {
   }, [channelsData]);
 
   if (moviesLoading || channelsLoading || contentLoading) {
-    return <div>Loading...</div>;
+    return <Preloader />;
   }
 
   return (

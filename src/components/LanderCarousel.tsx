@@ -43,12 +43,12 @@ const Slide = React.memo(function Slide({
   isPlaying: boolean;
 }) {
   return (
-    <div className="embla__slide relative w-screen aspect-16/9 flex-shrink-0">
+    <div className="embla__slide relative w-screen shrink-0">
       {/* ---------- MEDIA (video or image) ---------- */}
       {slide.stream_link ? (
         <MuxPlayer
           ref={setPlayerRef}
-          className="w-full object-cover"
+          className="w-screen object-cover object-center shrink-0"
           playbackId={getPlaybackId(slide.stream_link) ?? ""}
           title={slide.advert_name}
           autoPlay={true}
@@ -57,19 +57,24 @@ const Slide = React.memo(function Slide({
           onPlay={onVideoPlay}
           onPause={onVideoPause}
           streamType="on-demand"
-          style={{ aspectRatio: "16/9", zIndex: 0 }}
+          style={{
+            width: "100%",
+            aspectRatio: "21 / 9",
+            "--media-object-fit": "cover",
+            "--media-object-position": "center",
+          }}
         />
       ) : (
         <Image
           fill
-          className="object-cover object-center"
+          className="object-cover object-center w-full aspect-21/9 shrink-0"
           src={slide.advert_thumbnail || PLACEHOLDER_IMAGE}
           alt={slide.advert_name}
           sizes="100vw"
           priority={index === 0}
         />
       )}
-      <div className="w-full h-1/2 bg-gradient-to-b to-black/60 from-transparent absolute bottom-22 left-0 flex items-end justify-start z-10 p-14">
+      <div className="w-screen h-1/2 bg-gradient-to-b to-black/60 from-transparent absolute bottom-0 left-0 flex items-end justify-start z-10 p-14">
         <div className="lg:w-1/3">
           <h1 className="text-white text-3xl font-bold">{slide.advert_name}</h1>
           <p className="mt-2">{slide?.advert_description}</p>
@@ -293,25 +298,24 @@ export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   return (
     <div className="relative group">
       {/* Main carousel container */}
-      <div
-        className="overflow-hidden w-full mx-auto flex items-center justify-center md:max-h-[70vh] sticky"
-        ref={emblaRef}
-      >
-        {slides?.map((slide: Advert, index: number) => (
-          <Slide
-            key={slide.id ?? index}
-            slide={slide}
-            index={index}
-            onVideoEnded={onVideoEnded}
-            onVideoPlay={onVideoPlay}
-            onVideoPause={onVideoPause}
-            setPlayerRef={(el) => {
-              playerRefs.current[index] = el;
-            }}
-            isPlaying={isPlaying}
-            togglePlayPause={togglePlayPause}
-          />
-        ))}
+      <div className="w-full embla gap-0" ref={emblaRef}>
+        <div className="embla__container w-full p-0 m-0">
+          {slides?.map((slide: Advert, index: number) => (
+            <Slide
+              key={slide.id ?? index}
+              slide={slide}
+              index={index}
+              onVideoEnded={onVideoEnded}
+              onVideoPlay={onVideoPlay}
+              onVideoPause={onVideoPause}
+              setPlayerRef={(el) => {
+                playerRefs.current[index] = el;
+              }}
+              isPlaying={isPlaying}
+              togglePlayPause={togglePlayPause}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Navigation Controls - Only show on hover/touch */}
