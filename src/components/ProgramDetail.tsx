@@ -22,7 +22,7 @@ type Props = {
   program: Program;
 };
 
-function getUrlType(url: string): "youtube" | "mux" | "other" | null {
+function getUrlType(url: string): "youtube" | "mux" | "direct" | null {
   if (!url) return null;
   try {
     const urlObject = new URL(url);
@@ -35,7 +35,7 @@ function getUrlType(url: string): "youtube" | "mux" | "other" | null {
     if (urlObject.hostname.includes("mux.com")) {
       return "mux";
     }
-    return "other";
+    return "direct";
   } catch (error) {
     console.error("Error getting URL type:", error);
     return "other";
@@ -215,6 +215,24 @@ export default function ProgramDetail({ program }: Props) {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           ></iframe>
+        )}
+        {urlType === "direct" && (
+          <video
+            key={currentVideoUrl}
+            className="w-full h-full"
+            src={currentVideoUrl}
+            controls
+            autoPlay
+            onEnded={() => {
+              if (program.streaming_link) {
+                setCurrentVideoUrl(program.streaming_link);
+                setPlayBackType("streaming");
+                playNext();
+              }
+            }}
+          >
+            Your browser does not support video playback.
+          </video>
         )}
       </div>
       {playbackType != "streaming" && (

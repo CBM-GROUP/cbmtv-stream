@@ -48,7 +48,7 @@ const Slide = React.memo(function Slide({
   md:aspect-[21/9]"
     >
       {/* ---------- MEDIA (video or image) ---------- */}
-      {slide.stream_link ? (
+      {slide.stream_link && getPlaybackId(slide.stream_link) ? (
         <MuxPlayer
           ref={setPlayerRef}
           className="w-screen h-full object-cover object-center shrink-0"
@@ -64,6 +64,18 @@ const Slide = React.memo(function Slide({
             "--media-object-fit": "cover",
             "--media-object-position": "center",
           }}
+        />
+      ) : slide.stream_link ? (
+        <video
+          ref={(element) => setPlayerRef(element as never)}
+          className="w-screen h-full object-cover object-center shrink-0"
+          src={slide.stream_link}
+          autoPlay
+          muted
+          playsInline
+          onEnded={onVideoEnded}
+          onPlay={onVideoPlay}
+          onPause={onVideoPause}
         />
       ) : (
         <Image
