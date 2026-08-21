@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
 import { getSeriesSeasons } from "@/services/series";
 import type { Program } from "@/types";
-import MuxPlayer from "@mux/mux-player-react";
 import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,7 +21,7 @@ type Props = {
   program: Program;
 };
 
-function getUrlType(url: string): "youtube" | "mux" | "direct" | null {
+function getUrlType(url: string): "youtube" | "direct" | null {
   if (!url) return null;
   try {
     const urlObject = new URL(url);
@@ -32,13 +31,12 @@ function getUrlType(url: string): "youtube" | "mux" | "direct" | null {
     ) {
       return "youtube";
     }
-    if (urlObject.hostname.includes("mux.com")) {
-      return "mux";
-    }
-    return "direct";
+    return urlObject.protocol === "http:" || urlObject.protocol === "https:"
+      ? "direct"
+      : null;
   } catch (error) {
     console.error("Error getting URL type:", error);
-    return "other";
+    return null;
   }
 }
 
@@ -55,24 +53,6 @@ function getYouTubeVideoId(url: string): string | null {
     return null;
   } catch (error) {
     console.error("Error getting YouTube video ID:", error);
-    return null;
-  }
-}
-
-function getPlaybackId(url: string): string | null {
-  if (!url) {
-    return null;
-  }
-  try {
-    const urlObject = new URL(url);
-    if (!urlObject.hostname.includes("mux.com")) {
-      return null;
-    }
-    const pathname = urlObject.pathname;
-    const playbackId = pathname.split("/")[1].split(".")[0];
-    return playbackId;
-  } catch (error) {
-    console.error("Error extracting playback ID:", error);
     return null;
   }
 }
@@ -134,10 +114,6 @@ export default function ProgramDetail({ program }: Props) {
   }, [currentVideoUrl]);
 
   const urlType = currentVideoUrl ? getUrlType(currentVideoUrl) : null;
-  const playbackId =
-    urlType === "mux" && currentVideoUrl
-      ? getPlaybackId(currentVideoUrl)
-      : null;
   const youtubeId =
     urlType === "youtube" && currentVideoUrl
       ? getYouTubeVideoId(currentVideoUrl)
@@ -169,23 +145,6 @@ export default function ProgramDetail({ program }: Props) {
         ref={videoPlayerRef}
         className="mb-8 w-screen aspect-16:9 bg-black sticky top-0 z-100"
       >
-        {urlType === "mux" && playbackId && (
-          <MuxPlayer
-            className="w-full aspect-16/9 rounded-none"
-            playbackId={playbackId}
-            title={program.title}
-            autoPlay
-            onEnded={() => {
-              if (program.streaming_link) {
-                {
-                  setCurrentVideoUrl(program.streaming_link);
-                  setPlayBackType("streaming");
-                  playNext();
-                }
-              }
-            }}
-          />
-        )}
         {playbackType === "ad" && (
           <button
             onClick={() => {
@@ -221,8 +180,11 @@ export default function ProgramDetail({ program }: Props) {
             key={currentVideoUrl}
             className="w-full h-full"
             src={currentVideoUrl}
+            poster={program.thumbnail || undefined}
             controls
             autoPlay
+            playsInline
+            preload="metadata"
             onEnded={() => {
               if (program.streaming_link) {
                 setCurrentVideoUrl(program.streaming_link);

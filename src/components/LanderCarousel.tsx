@@ -1,18 +1,14 @@
 "use client";
 import { Advert } from "@/types";
-import MuxPlayer from "@mux/mux-player-react";
 import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import {
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
-  Pause,
   Play,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { getPlaybackId } from "@/lib/helpers";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface LanderCarouselProps {
@@ -38,7 +34,7 @@ const Slide = React.memo(function Slide({
   onVideoEnded: () => void;
   onVideoPlay: () => void;
   onVideoPause: () => void;
-  setPlayerRef: (el: React.ComponentRef<typeof MuxPlayer> | null) => void;
+  setPlayerRef: (el: HTMLVideoElement | null) => void;
   togglePlayPause: () => void;
   isPlaying: boolean;
 }) {
@@ -48,31 +44,16 @@ const Slide = React.memo(function Slide({
   md:aspect-[21/9]"
     >
       {/* ---------- MEDIA (video or image) ---------- */}
-      {slide.stream_link && getPlaybackId(slide.stream_link) ? (
-        <MuxPlayer
+      {slide.stream_link ? (
+        <video
           ref={setPlayerRef}
           className="w-screen h-full object-cover object-center shrink-0"
-          playbackId={getPlaybackId(slide.stream_link) ?? ""}
-          title={slide.advert_name}
-          autoPlay={true}
-          muted
-          onEnded={onVideoEnded}
-          onPlay={onVideoPlay}
-          onPause={onVideoPause}
-          streamType="on-demand"
-          style={{
-            "--media-object-fit": "cover",
-            "--media-object-position": "center",
-          }}
-        />
-      ) : slide.stream_link ? (
-        <video
-          ref={(element) => setPlayerRef(element as never)}
-          className="w-screen h-full object-cover object-center shrink-0"
           src={slide.stream_link}
+          poster={slide.advert_thumbnail || undefined}
           autoPlay
           muted
           playsInline
+          preload="metadata"
           onEnded={onVideoEnded}
           onPlay={onVideoPlay}
           onPause={onVideoPause}
@@ -109,9 +90,7 @@ const Slide = React.memo(function Slide({
 export const LanderCarousel = ({ slides }: LanderCarouselProps) => {
   const autoplayRef = useRef<ReturnType<typeof Autoplay> | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const playerRefs = useRef<(React.ComponentRef<typeof MuxPlayer> | null)[]>(
-    []
-  );
+  const playerRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
     Autoplay({
