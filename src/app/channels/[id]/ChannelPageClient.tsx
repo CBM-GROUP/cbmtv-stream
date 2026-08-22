@@ -1,9 +1,9 @@
 "use client";
 import { ProgramGrid } from '@/components/ProgramGrid';
+import { SafeImage } from "@/components/SafeImage";
 import { useContent } from '@/hooks/useContent';
 import { Program } from '@/types';
 import { useMemo } from 'react';
-import Image from 'next/image';
 
 interface Channel {
   id: string;
@@ -69,7 +69,7 @@ export default function ChannelPageClient({ channel }: Props) {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col items-center justify-center">
-        <Image
+        <SafeImage
           src={channel.cover_image_url}
           alt={channel.name}
           width={300}

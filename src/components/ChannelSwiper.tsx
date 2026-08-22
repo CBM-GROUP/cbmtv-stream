@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
-import Image from "next/image";
+import { SafeImage } from "@/components/SafeImage";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Slider from "react-slick";
@@ -98,8 +98,8 @@ const Swiper = ({
           >
             <div className="flex items-center flex-col md:flex-row justify-center md:justify-start md:space-x-4 bg-white/3 p-2 max-md:py-6 rounded-xl cursor-pointer">
               <div className="relative h-20 w-20 aspect-square rounded-lg shadow-md overflow-hidden">
-                <Image
-                  src={poster.src || "/images/cbmtvwhitelogo.png"}
+                <SafeImage
+                  src={poster.src}
                   alt={poster.href || `Poster ${index + 1}`}
                   fill
                   className="object-cover"

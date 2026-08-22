@@ -1,7 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
-
-const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
+import { SafeImage } from "@/components/SafeImage";
 
 interface Props {
   title: string;
@@ -25,8 +23,8 @@ export default function ChannelCard({
       aria-label={`Watch ${title} channel`}
     >
       <div className="relative aspect-video">
-        <Image
-          src={image || PLACEHOLDER_IMAGE}
+        <SafeImage
+          src={image}
           alt={`${title} channel thumbnail`}
           fill
           className="object-cover transition-opacity group-hover:opacity-90"

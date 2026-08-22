@@ -1,5 +1,6 @@
 "use client";
 import { Advert } from "@/types";
+import { SafeImage } from "@/components/SafeImage";
 import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import {
@@ -7,7 +8,6 @@ import {
   ChevronRight,
   Play,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -15,7 +15,6 @@ interface LanderCarouselProps {
   slides: Advert[];
 }
 
-const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 const IMAGE_SLIDE_DURATION = 5000; // 5 seconds for images
 
 // NEW: Create a memoized Slide component
@@ -59,10 +58,10 @@ const Slide = React.memo(function Slide({
           onPause={onVideoPause}
         />
       ) : (
-        <Image
+        <SafeImage
           fill
           className="object-cover object-center w-full h-full shrink-0"
-          src={slide.advert_thumbnail || PLACEHOLDER_IMAGE}
+          src={slide.advert_thumbnail}
           alt={slide.advert_name}
           sizes="100vw"
           priority={index === 0}
