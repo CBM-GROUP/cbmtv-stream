@@ -6,10 +6,14 @@ import ProgramDetail from "@/components/ProgramDetail";
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  // Next 16: params is a Promise and must be awaited. Reading params.id
+  // directly yields undefined, which fetched /api/content/undefined/ (404)
+  // and made every program page fall back to the "not found" title.
+  params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   try {
-    const program = await getContentById(params.id);
+    const { id } = await params;
+    const program = await getContentById(id);
     return {
       title: `CBM TV | ${program.data.title}`,
       description: program.data.description,
@@ -25,7 +29,7 @@ export async function generateMetadata({
 export default async function ProgramDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   try {
     const awaitedParams = await params;

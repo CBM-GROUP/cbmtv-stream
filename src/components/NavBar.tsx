@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
+import { SafeImage } from "@/components/SafeImage";
 import { Menu, Power } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -64,8 +65,8 @@ export const NavBar = () => {
                 <PopoverTrigger>
                   <div className="flex items-center space-x-2">
                     {user.image ? (
-                      <Image
-                        src={user.image} // Use a default avatar if user.image is not available
+                      <SafeImage
+                        src={user.image}
                         width={40}
                         height={40}
                         alt="User Avatar"
@@ -139,8 +140,8 @@ export const NavBar = () => {
                       <>
                         <div className="flex flex-col items-center justify-center space-y-4">
                           {user.image ? (
-                            <Image
-                              src={user.image} // Use a default avatar if user.image is not available
+                            <SafeImage
+                              src={user.image}
                               width={40}
                               height={40}
                               alt="User Avatar"

@@ -1,7 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
-
-const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
+import { SafeImage } from "@/components/SafeImage";
 
 interface ProgramCardProps {
   title: string,
@@ -15,8 +13,8 @@ export const ProgramCard = ({ title, src, alt, href }: ProgramCardProps) => {
   return (
     <div className="w-full aspect-3/4 rounded-lg border-4 hover:scale-105 duration-300 border-white/7 hover:border-chart-4 overflow-hidden z-0 relative">
       <Link href={href || ""}>
-        <Image
-          src={src || PLACEHOLDER_IMAGE}
+        <SafeImage
+          src={src}
           alt={alt}
           fill
           className="object-cover"

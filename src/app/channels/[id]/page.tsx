@@ -2,7 +2,9 @@ import { getChannelById } from '@/services/channels';
 import ChannelPageClient from './ChannelPageClient';
 
 type Props = {
-  params: { id: string };
+  // Next 16: params is a Promise. This route already awaits it correctly;
+  // the type just needs to say so.
+  params: Promise<{ id: string }>;
 };
 
 export default async function ChannelPage({ params }: Props) {

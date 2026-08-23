@@ -1,12 +1,12 @@
 "use client";
 
 import SeasonsAccordion from "@/components/SeasonsAccordion";
+import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
 import { getSeriesSeasons } from "@/services/series";
 import type { Program } from "@/types";
 import { ChevronRight } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
@@ -56,8 +56,6 @@ function getYouTubeVideoId(url: string): string | null {
     return null;
   }
 }
-
-const PLACEHOLDER_IMAGE = "/images/cbmtvwhitelogo.png";
 
 export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -251,8 +249,8 @@ export default function ProgramDetail({ program }: Props) {
             <div className="md:col-span-2">
               <div className="flex items-start h-fit w-full border-b border-white/10 pb-10 mb-10">
                 <div className="flex flex-col sm:flex-row items-start w-full space-y-6 sm:space-y-0 sm:space-x-6">
-                  <Image
-                    src={program.thumbnail || PLACEHOLDER_IMAGE}
+                  <SafeImage
+                    src={program.thumbnail}
                     alt={`${program.title} poster`}
                     width={300}
                     height={450}

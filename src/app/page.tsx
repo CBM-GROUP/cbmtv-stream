@@ -6,6 +6,7 @@ import Preloader from "@/components/Preloader";
 import { ProgramGrid } from "@/components/ProgramGrid";
 import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
+import type { Channel } from "@/types";
 import { useContent } from "@/hooks/useContent";
 import { useMovies } from "@/hooks/useMovies";
 import { Program } from "@/types";
@@ -15,12 +16,6 @@ interface Movie {
   thumbnail: string;
   title: string;
   description: string;
-}
-
-interface Channel {
-  id: string;
-  name: string;
-  cover_image_url: string;
 }
 
 export default function HomePage() {
@@ -56,13 +51,17 @@ export default function HomePage() {
 
   const channels = useMemo(() => {
     if (!channelsData) return [];
-    return channelsData.data.map((channel: Channel) => {
-      return {
-        title: channel.name,
-        src: channel.cover_image_url,
-        href: `channels/${channel.id}`,
-      };
-    });
+    // cover_image_url is null until an editor uploads one; the carousel
+    // requires a string src, so drop channels that have no cover.
+    return channelsData
+      .filter((channel: Channel) => Boolean(channel.cover_image_url))
+      .map((channel: Channel) => {
+        return {
+          title: channel.name,
+          src: channel.cover_image_url as string,
+          href: `channels/${channel.id}`,
+        };
+      });
   }, [channelsData]);
 
   if (moviesLoading || channelsLoading || contentLoading) {

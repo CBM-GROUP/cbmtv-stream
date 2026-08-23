@@ -24,6 +24,15 @@ export interface UpdateAdData {
   video_url?: string;
 }
 
+export interface Channel {
+  id: string;
+  name: string;
+  description: string;
+  // Null until an editor uploads one; the API returns null for unset media.
+  logo_url: string | null;
+  cover_image_url: string | null;
+}
+
 export interface CreateChannelData {
   name: string;
   description: string;

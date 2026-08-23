@@ -1,7 +1,7 @@
 import { listChannels } from "@/services/channels";
+import { SafeImage } from "@/components/SafeImage";
 import { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "CBM TV | Channels",
@@ -11,15 +11,14 @@ export const metadata: Metadata = {
 interface Channel {
   id: string;
   name: string;
-  logo_url: string;
-  cover_image_url: string;
+  logo_url: string | null;
+  cover_image_url: string | null;
 }
 
 export default async function ChannelsPage() {
   let channels: Channel[] = [];
   try {
-    const response = await listChannels();
-    channels = response.data;
+    channels = await listChannels();
 
   } catch (error) {
     console.error("Error fetching channels:", error);
@@ -31,7 +30,7 @@ export default async function ChannelsPage() {
       {channels?.map((channel: Channel, index: number) => (
         <Link href={`/channels/${channel.id}`} key={index}>
           <div className="bg-white/5 p-3 tetxt-center rounded-xl">
-            <Image
+            <SafeImage
               src={channel.cover_image_url}
               alt={channel.name}
               width={300}
