@@ -123,16 +123,132 @@
   box-sizing: border-box;
 }
 
-body {
-  width: 100vw;
-  overflow-x: hidden;
+/*
+ * ---------------------------------------------------------------------------
+ * Document-level horizontal containment
+ * ---------------------------------------------------------------------------
+ * `body { width: 100vw }` used to live here, and it was the root cause of the
+ * whole page dragging sideways: 100vw INCLUDES the vertical scrollbar, so body
+ * ended up ~15px wider than <html>'s content box. body's own `overflow-x:
+ * hidden` clips body's *children* but does nothing about body overflowing
+ * html, and html had no overflow control at all -- so the document itself
+ * scrolled horizontally, carrying the sticky header along with it.
+ *
+ * `clip` rather than `hidden` on both elements matters. `hidden` makes the
+ * element a scroll container, and a scroll container ancestor is what silently
+ * breaks `position: sticky` on descendants. `clip` contains the overflow
+ * without establishing one.
+ *
+ * The clip/visible pairing below is also deliberate. Per CSS Overflow 3, `clip`
+ * only degrades to `hidden` when the other axis is `scroll`/`auto`; paired with
+ * `visible` it stays `clip`. So overflow-y MUST be left alone here -- setting
+ * it to `auto` would turn overflow-x back into `hidden` and reintroduce the
+ * scroll container. This is why the viewport, not <body>, is the page's single
+ * scroll container (see the <body> class list in app/layout.tsx).
+ */
+html {
+  overflow-x: clip;
 }
 
-.carousel-container {
-  overflow: hidden;
-  padding: 0;
+body {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Layout tokens
+ * ---------------------------------------------------------------------------
+ * --header-h is the height of the sticky NavBar, used by anything that has to
+ * sit directly beneath it (currently the program-detail player). Below `md`
+ * the NavBar renders a second row holding the search field, hence the taller
+ * value. These are measured from the current NavBar; Phase 4 reworks the
+ * mobile header and should revisit the small-screen value.
+ *
+ * Stacking contract for sticky chrome -- the header always wins:
+ *
+ *   z-50  NavBar          (src/components/NavBar.tsx)
+ *   z-30  detail player   (src/components/ProgramDetail.tsx)
+ *
+ * Before this, the player was `z-100` against the header's `z-50` and covered
+ * the navigation on every program page. Anything sticky added later belongs
+ * below z-50.
+ */
+:root {
+  --header-h: 152px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --header-h: 88px;
+  }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Video player standard
+ * ---------------------------------------------------------------------------
+ * One sizing rule for every playback surface. Requirements: strict 16:9,
+ * centred, responsive, cinematic, bounded on very large screens, and never
+ * taller than the usable viewport beneath the header.
+ *
+ * The height bound is expressed as a *width* cap rather than `max-height`
+ * because `aspect-ratio` plus `max-height` breaks the ratio: width stays
+ * definite at 100% while height gets clamped, which letterboxes the frame.
+ * Converting the available height back into a width via `* 16 / 9` keeps the
+ * ratio exact and lets `min()` pick whichever bound binds first.
+ *
+ * --player-max-w is the "stop growing" point on large monitors. It is a
+ * starting value, not a fixed design rule -- adjust it here and every player
+ * surface follows.
+ */
+:root {
+  --player-max-w: 1600px;
+  --player-viewport-gutter: 2rem;
+}
+
+.player-frame {
+  width: 100%;
+  max-width: min(
+    var(--player-max-w),
+    calc((100vh - var(--header-h) - var(--player-viewport-gutter)) * 16 / 9)
+  );
+  margin-inline: auto;
+  aspect-ratio: 16 / 9;
   position: relative;
-  width: 100vw;
+}
+
+@supports (height: 100dvh) {
+  .player-frame {
+    max-width: min(
+      var(--player-max-w),
+      calc((100dvh - var(--header-h) - var(--player-viewport-gutter)) * 16 / 9)
+    );
+  }
+}
+
+.player-frame > iframe,
+.player-frame > video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Intentional horizontal scrolling
+ * ---------------------------------------------------------------------------
+ * The document must never move horizontally, but rails and carousels must
+ * still scroll inside their own bounds. `overscroll-behavior-x: contain` stops
+ * a horizontal gesture that reaches the end of a rail from chaining outward to
+ * the document or triggering the browser's back-swipe.
+ */
+.h-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .embla__slide {
@@ -146,10 +262,15 @@ body {
   padding: 0;
 }
 
+/*
+ * No `gap` here on purpose. Slides are `flex: 0 0 100%` and Embla translates
+ * the track by whole-slide widths, so a 16px gap made every slide land 16px
+ * further off than the last -- a drift that grew across the carousel. The
+ * gutter comes from the slides' own `padding: 0 8px` instead. `justify-content`
+ * is likewise meaningless at a 100% flex basis.
+ */
 .embla__container {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
   will-change: transform;
 }
 

@@ -39,14 +39,14 @@ const Slide = React.memo(function Slide({
 }) {
   return (
     <div
-      className="embla__slide relative w-screen shrink-0 aspect-square
+      className="embla__slide relative w-full shrink-0 aspect-square
   md:aspect-[21/9]"
     >
       {/* ---------- MEDIA (video or image) ---------- */}
       {slide.stream_link ? (
         <video
           ref={setPlayerRef}
-          className="w-screen h-full object-cover object-center shrink-0"
+          className="w-full h-full object-cover object-center shrink-0"
           src={slide.stream_link}
           poster={slide.advert_thumbnail || undefined}
           autoPlay
@@ -67,7 +67,7 @@ const Slide = React.memo(function Slide({
           priority={index === 0}
         />
       )}
-      <div className="w-screen h-1/2 bg-gradient-to-b to-black md:to-black/80 from-transparent absolute bottom-0 left-0 flex items-end justify-start z-10 p-6 md:p-14">
+      <div className="w-full h-1/2 bg-gradient-to-b to-black md:to-black/80 from-transparent absolute bottom-0 left-0 flex items-end justify-start z-10 p-6 md:p-14">
         <div className="lg:w-1/3">
           <h1 className="text-white text-xl md:text-3xl font-bold">
             {slide.advert_name}

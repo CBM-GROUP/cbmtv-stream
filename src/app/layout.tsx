@@ -46,8 +46,16 @@ export default function RootLayout({
           content="CBM TV is an internet-based, digital video-on-demand streaming platform showcasing a diverse catalogue of channels and TV shows, movies, documentaries, animation and music videos from across Africa."
         />
       </head>
+      {/*
+        No `h-screen overflow-y-auto` here. That made <body> the scroll
+        container, which (a) competed with the viewport for scrolling and
+        (b) forced `overflow-x: clip` in globals.css to degrade to `hidden`,
+        re-establishing the very scroll container that breaks `position:
+        sticky` on the NavBar. The viewport is now the single page scroll
+        container; see the containment comment in globals.css.
+      */}
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen overflow-x-hidden overflow-y-auto relative`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased relative`}
       >
         <AuthProvider>
           <Providers>
@@ -56,7 +64,7 @@ export default function RootLayout({
             ) : (
               <>
                 <NavBar />
-                {children}
+                <main>{children}</main>
                 <Footer />
               </>
             )}

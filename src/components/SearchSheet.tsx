@@ -1,3 +1,3 @@
 export const SearchSheet = () => {
-    return <section className="w-screen h-screen"></section>
+    return <section className="w-full min-h-screen"></section>
 }
