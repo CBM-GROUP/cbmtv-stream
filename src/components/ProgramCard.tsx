@@ -2,8 +2,9 @@ import Link from "next/link";
 import { SafeImage } from "@/components/SafeImage";
 
 interface ProgramCardProps {
-  title: string,
-  src: string;
+  title: string;
+  /** Content.thumbnail is nullable; SafeImage falls back to the placeholder. */
+  src: string | null;
   alt: string;
   slug: string;
   href: string;

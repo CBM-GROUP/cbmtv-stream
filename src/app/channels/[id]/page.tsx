@@ -1,4 +1,5 @@
 import { getChannelById } from '@/services/channels';
+import type { Channel } from '@/types';
 import ChannelPageClient from './ChannelPageClient';
 
 type Props = {
@@ -10,7 +11,7 @@ type Props = {
 export default async function ChannelPage({ params }: Props) {
   const { id } = await params;
 
-  let channel = null;
+  let channel: Channel | null = null;
   try {
     const response = await getChannelById(id);
     channel = response.data;

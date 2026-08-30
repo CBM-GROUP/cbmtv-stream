@@ -1,39 +1,30 @@
 import apiClient, { publicApiClient } from "./api";
-import { API_Routes } from "@/lib/api-routes";
-import { Channel, CreateChannelData, UpdateChannelData } from "@/types";
-
-type ChannelListResponse =
-  | Channel[]
-  | {
-      results?: Channel[];
-    };
-
-// /api/channels/ is paginated by DRF, so the payload is {count, results: []},
-// not a bare array. Unwrap it here the same way listContent does, so callers
-// always get an array to map over.
-function normalizeChannelList(data: ChannelListResponse): Channel[] {
-  if (Array.isArray(data)) return data;
-  return Array.isArray(data.results) ? data.results : [];
-}
+import { API_Routes, buildPath } from "@/lib/api-routes";
+import { fetchAllPages } from "@/lib/fetchAllPages";
+import type { Channel, CreateChannelData, Program, UpdateChannelData } from "@/types";
 
 /* Channels */
-export const createChannel = (data: CreateChannelData) =>
-  apiClient.post(API_Routes.createChannel, data);
+
 export const listChannels = () =>
-  publicApiClient
-    .get<ChannelListResponse>(API_Routes.listChannels)
-    .then((response) => normalizeChannelList(response.data));
-export const getChannelById = (id: string | number) => {
-  return publicApiClient.get(
-    API_Routes.getChannelById.replace("{{channel_id}}", String(id))
+  fetchAllPages<Channel>(publicApiClient, API_Routes.listChannels);
+
+export const getChannelById = (id: string | number) =>
+  publicApiClient.get<Channel>(
+    buildPath(API_Routes.getChannelById, { channel_id: id }),
   );
-};
+
+/** Content under one channel, via the viewset's paginated `contents` action. */
+export const listChannelContents = (id: string | number) =>
+  fetchAllPages<Program>(
+    publicApiClient,
+    buildPath(API_Routes.listChannelContents, { channel_id: id }),
+  );
+
+export const createChannel = (data: CreateChannelData) =>
+  apiClient.post<Channel>(API_Routes.createChannel, data);
+
 export const updateChannel = (id: string | number, data: UpdateChannelData) =>
-  apiClient.put(
-    API_Routes.updateChannel.replace("{{channel_id}}", String(id)),
-    data
-  );
+  apiClient.put<Channel>(buildPath(API_Routes.updateChannel, { channel_id: id }), data);
+
 export const deleteChannel = (id: string | number) =>
-  apiClient.delete(
-    API_Routes.deleteChannel.replace("{{channel_id}}", String(id))
-  );
+  apiClient.delete(buildPath(API_Routes.deleteChannel, { channel_id: id }));

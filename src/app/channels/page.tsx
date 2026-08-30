@@ -2,18 +2,12 @@ import { listChannels } from "@/services/channels";
 import { SafeImage } from "@/components/SafeImage";
 import { Metadata } from "next";
 import Link from "next/link";
+import type { Channel } from "@/types";
 
 export const metadata: Metadata = {
   title: "CBM TV | Channels",
   description: "Browse all the channels available on CBM TV.",
 };
-
-interface Channel {
-  id: string;
-  name: string;
-  logo_url: string | null;
-  cover_image_url: string | null;
-}
 
 export default async function ChannelsPage() {
   let channels: Channel[] = [];

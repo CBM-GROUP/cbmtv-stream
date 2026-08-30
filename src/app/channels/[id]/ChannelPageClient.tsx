@@ -2,27 +2,14 @@
 import { ProgramGrid } from '@/components/ProgramGrid';
 import { SafeImage } from "@/components/SafeImage";
 import { useContent } from '@/hooks/useContent';
-import { Program } from '@/types';
+import type { Channel, Program, ProgramCardItem } from '@/types';
 import { useMemo } from 'react';
 
-interface Channel {
-  id: string;
-  name: string;
-  description: string;
-  cover_image_url: string;
-}
-
-interface ChannelProgramItem {
-  id: string;
-  src: string;
-  alt: string;
-  title: string;
-  width: number;
-  height: number;
-  slug: string;
-  genre?: string;
-  content_type?: string;
-}
+/**
+ * The grid filters on content_type, so carry it alongside the card fields.
+ * Client-derived; the API's Content has no src/alt/slug.
+ */
+type ChannelProgramItem = ProgramCardItem & { content_type: Program['content_type'] };
 
 type Props = {
   channel: Channel;
@@ -34,19 +21,22 @@ export default function ChannelPageClient({ channel }: Props) {
   // Derive programs for this channel only
   const channelPrograms = useMemo(() => {
     if (!content || !channel?.id) return [];
+    // Both sides are numbers now. This used to compare Program.channel (typed
+    // string, actually a number) against Channel.id (typed string), so the
+    // strict equality could never hold and the grid silently rendered empty.
     return content
       .filter((program: Program) => program.channel === channel.id)
-      .map((program: Program) => ({
-        id: program.id,
-        src: program.thumbnail,
-        alt: program.title,
-        title: program.title,
-        width: 400,
-        height: 400,
-        slug: `programs/${program.id}`,
-        genre: program.genre,
-        content_type: program.content_type,
-      }));
+      .map(
+        (program: Program): ChannelProgramItem => ({
+          id: program.id,
+          src: program.thumbnail,
+          alt: program.title,
+          title: program.title,
+          slug: `programs/${program.id}`,
+          genre: program.genre ?? undefined,
+          content_type: program.content_type,
+        }),
+      );
   }, [content, channel?.id]);
 
   const filters = useMemo(() => {
