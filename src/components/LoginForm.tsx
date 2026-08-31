@@ -173,7 +173,7 @@ export const LoginForm = () => {
           </SheetTrigger>
           <SheetContent
             side="top"
-            className="w-[calc(100%-20px)] sm:w-fit top-1/2 left-1/2 -translate-1/2 h-fit p-5 pb-14 rounded-xl shadow-[0_0_0_100vw_rgba(0,0,0,0.6)] bg-white px-8 sm:px-14"
+            className="w-[calc(100%-20px)] sm:w-fit top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-fit p-5 pb-14 rounded-xl shadow-[0_0_0_100vw_rgba(0,0,0,0.6)] bg-white px-8 sm:px-14"
           >
             <SheetHeader className="px-0">
               <SheetTitle className="text-black text-2xl">

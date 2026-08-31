@@ -36,7 +36,7 @@ export const NavBar = () => {
 
   return (
     <section className="sticky top-0 bg-background z-50 py-4">
-      <header className="w-screen px-4 sm:px-10 flex items-center justify-between">
+      <header className="w-full px-4 sm:px-10 flex items-center justify-between">
         <div className="flex items-center space-x-12">
           <Link href="/">
             <Image

@@ -139,61 +139,79 @@ export default function ProgramDetail({ program }: Props) {
 
   return (
     <>
+      {/*
+        Outer band is full-width and sticky so the player follows the reader,
+        offset by --header-h so it parks *beneath* the NavBar rather than on top
+        of it. Its z-index is deliberately below the header's (see the stacking
+        tokens in globals.css); this used to be `z-100` against the header's
+        `z-50` and covered the navigation on every program page.
+
+        The inner .player-frame carries the single shared sizing rule: strict
+        16:9, centred, capped so it stays cinematic without swallowing a large
+        monitor. The class it replaces here, `aspect-16:9`, was not a real
+        Tailwind utility -- the colon parses as a variant separator, so it
+        generated no CSS at all and the container had no aspect ratio. The
+        <video> inside then resolved `h-full` against an auto-height parent and
+        rendered at full viewport width times its intrinsic ratio, which is why
+        the player ballooned on large screens.
+      */}
       <div
         ref={videoPlayerRef}
-        className="mb-8 w-screen aspect-16:9 bg-black sticky top-0 z-100"
+        className="mb-8 w-full bg-black sticky top-[var(--header-h)] z-30"
       >
-        {playbackType === "ad" && (
-          <button
-            onClick={() => {
-              setCurrentVideoUrl(program.streaming_link);
-              setPlayBackType("streaming");
-            }}
-            className="absolute bottom-20 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
-          >
-            Skip
-          </button>
-        )}
-        {urlType === "youtube" && youtubeId && (
-          <iframe
-            className="w-full h-full"
-            src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
-            title="YouTube video player"
-            frameBorder="0"
-            onEnded={() => {
-              setCurrentVideoUrl(program.streaming_link);
-              setPlayBackType("streaming");
-            }}
-            onLoad={() => {
-              if (playbackType === "ad") {
-                setPlayBackType("ad");
-              }
-            }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          ></iframe>
-        )}
-        {urlType === "direct" && (
-          <video
-            key={currentVideoUrl}
-            className="w-full h-full"
-            src={currentVideoUrl}
-            poster={program.thumbnail || undefined}
-            controls
-            autoPlay
-            playsInline
-            preload="metadata"
-            onEnded={() => {
-              if (program.streaming_link) {
+        <div className="player-frame">
+          {playbackType === "ad" && (
+            <button
+              onClick={() => {
                 setCurrentVideoUrl(program.streaming_link);
                 setPlayBackType("streaming");
-                playNext();
-              }
-            }}
-          >
-            Your browser does not support video playback.
-          </video>
-        )}
+              }}
+              className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
+            >
+              Skip
+            </button>
+          )}
+          {urlType === "youtube" && youtubeId && (
+            <iframe
+              className="w-full h-full"
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
+              title="YouTube video player"
+              frameBorder="0"
+              onEnded={() => {
+                setCurrentVideoUrl(program.streaming_link);
+                setPlayBackType("streaming");
+              }}
+              onLoad={() => {
+                if (playbackType === "ad") {
+                  setPlayBackType("ad");
+                }
+              }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            ></iframe>
+          )}
+          {urlType === "direct" && (
+            <video
+              key={currentVideoUrl}
+              className="w-full h-full"
+              src={currentVideoUrl}
+              poster={program.thumbnail || undefined}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              onEnded={() => {
+                if (program.streaming_link) {
+                  setCurrentVideoUrl(program.streaming_link);
+                  setPlayBackType("streaming");
+                  playNext();
+                }
+              }}
+            >
+              Your browser does not support video playback.
+            </video>
+          )}
+        </div>
       </div>
       {playbackType != "streaming" && (
         <div className="container mx-auto px-4 mt-14 pb-24">

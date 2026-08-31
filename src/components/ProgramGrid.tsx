@@ -41,7 +41,13 @@ export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
 
   return (
     <>
-      <div className="flex items-center space-x-10 px-4 sm:px-12 m-10 sm:my-20 overflow-x-auto py-2 mt-20">
+      {/*
+        Intentionally horizontally scrollable. `h-scroll` adds
+        `overscroll-behavior-x: contain` so a swipe that reaches the end of the
+        filter row stops there instead of chaining out to the document or
+        triggering the browser's back-swipe.
+      */}
+      <div className="flex items-center space-x-10 px-4 sm:px-12 m-10 sm:my-20 h-scroll py-2 mt-20">
         {filters &&
           [...programFilters].sort().map((filter, index) => (
             <span
