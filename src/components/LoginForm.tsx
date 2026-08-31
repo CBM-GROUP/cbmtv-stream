@@ -11,6 +11,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import apiClient from "@/services/api";
 import { registerUser } from "@/services/accounts";
+import { describeApiError } from "@/lib/api-errors";
 
 
 export const LoginForm = () => {
@@ -44,7 +45,7 @@ export const LoginForm = () => {
           router.push('/'); // Redirect to home page
         }
       } catch (err) {
-        setError("Login failed. Please check your credentials.");
+        setError(describeApiError(err, "Login failed. Please check your credentials."));
         console.error("Login failed", err);
       }
     } else {
@@ -80,7 +81,7 @@ export const LoginForm = () => {
         router.push('/'); // Redirect to home page
       }
     } catch (err) {
-      setError("Google login failed. Please try again.");
+      setError(describeApiError(err, "Google login failed. Please try again."));
       console.error("Google login failed", err);
     }
   }
@@ -103,14 +104,20 @@ export const LoginForm = () => {
       try {
         await registerUser({
           name: `${givenName} ${surname}`,
-          phone_number: phone,
+          // The serializer field is `phone`. This used to send `phone_number`,
+          // which RegisterSerializer simply ignored, so the number was dropped
+          // on every sign-up.
+          phone: phone,
           email: email,
           password: password,
         });
         setError(null);
         alert("Account created successfully! Please log in.");
       } catch (err) {
-        setError("Account creation failed. Please try again.");
+        // Surface the backend's field errors instead of collapsing every
+        // failure into one message. DRF replies with
+        // {"email": ["user with this email already exists."]}.
+        setError(describeApiError(err, "Account creation failed. Please try again."));
         console.error("Account creation failed", err);
       }
     } else {

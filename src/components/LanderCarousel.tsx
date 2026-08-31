@@ -62,7 +62,7 @@ const Slide = React.memo(function Slide({
           fill
           className="object-cover object-center w-full h-full shrink-0"
           src={slide.advert_thumbnail}
-          alt={slide.advert_name}
+          alt={slide.advert_name ?? "CBM TV advert"}
           sizes="100vw"
           priority={index === 0}
         />

@@ -1,25 +1,23 @@
 "use client";
 import { useState } from "react";
+import type { ProgramCardItem } from "@/types";
 import { ProgramCard } from "./ProgramCard";
 
-interface ProgramItem {
-  id: string;
-  src: string;
-  alt: string;
-  title: string;
-  slug: string;
-  genre?: string;
-}
-
+// ProgramCardItem is the client-derived view model in @/types -- deliberately
+// not the API's Content shape, which has no `src`/`alt`/`slug`.
 interface ProgramGridProps {
-  programs: ProgramItem[];
-  filters?: string[] | null;
+  programs: ProgramCardItem[];
+  filters?: (string | null)[] | null;
 }
 
 export const ProgramGrid = ({ programs, filters = null }: ProgramGridProps) => {
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const programFilters = new Set(filters);
+  // Content.genre / content_type are nullable, so drop empties before they
+  // become filter chips or index into customLabels.
+  const programFilters = new Set<string>(
+    (filters ?? []).filter((filter): filter is string => Boolean(filter)),
+  );
   programFilters.add("All");
 
   const customLabels: { [key: string]: string } = {

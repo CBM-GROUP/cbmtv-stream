@@ -7,25 +7,15 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { getSeasonEpisodes } from '@/services/series';
+import type { Episode, Season } from '@/types';
 import { useState } from 'react';
 
-type Season = {
-  id: number;
-  title: string;
-  season_number: number;
-};
-
-type Episode = {
-  id: number;
-  title: string;
-  description: string;
-  thumbnail: string;
-  streaming_link: string;
-};
-
+// Shapes come from @/types (mirrors content/serializers.py). The local Episode
+// type declared a `description` the Episode model does not have, so the
+// paragraph below it guarded never rendered.
 type Props = {
   seasons: Season[];
-  onEpisodeSelect: (url: string) => void;
+  onEpisodeSelect: (url: string | null) => void;
 };
 
 export default function SeasonsAccordion({ seasons, onEpisodeSelect }: Props) {
@@ -33,8 +23,8 @@ export default function SeasonsAccordion({ seasons, onEpisodeSelect }: Props) {
 
   const handleSeasonToggle = (seasonId: number) => {
     if (!episodesBySeason[seasonId]) {
-      getSeasonEpisodes(seasonId).then((res) => {
-        setEpisodesBySeason((prev) => ({ ...prev, [seasonId]: res.data }));
+      getSeasonEpisodes(seasonId).then((episodes) => {
+        setEpisodesBySeason((prev) => ({ ...prev, [seasonId]: episodes }));
       });
     }
   };
@@ -55,7 +45,6 @@ export default function SeasonsAccordion({ seasons, onEpisodeSelect }: Props) {
                   onClick={() => onEpisodeSelect(episode.streaming_link)}
                 >
                   <h4 className="text-lg font-semibold text-white/80">{episode.title}</h4>
-                  {episode.description && <p className="text-sm text-white/60 mt-2">{episode.description}</p>}
                 </div>
               ))}
             </div>

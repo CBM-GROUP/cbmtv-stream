@@ -5,17 +5,11 @@ import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
 import { getSeriesSeasons } from "@/services/series";
-import type { Program } from "@/types";
+import type { Program, Season } from "@/types";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
-
-type Season = {
-  id: number;
-  title: string;
-  season_number: number;
-};
 
 type Props = {
   program: Program;
@@ -59,7 +53,8 @@ function getYouTubeVideoId(url: string): string | null {
 
 export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | undefined>();
+  // Content.trailer_link and .streaming_link are both nullable on the API.
+  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
   const [playbackType, setPlayBackType] = useState<"streaming" | "ad" | null>(
@@ -86,9 +81,7 @@ export default function ProgramDetail({ program }: Props) {
   useEffect(() => {
     console.log(program);
     if (program.content_type === "series") {
-      getSeriesSeasons(program.id).then((res) => {
-        setSeasons(res.data);
-      });
+      getSeriesSeasons(program.id).then(setSeasons);
     }
   }, [program]);
 
@@ -97,7 +90,7 @@ export default function ProgramDetail({ program }: Props) {
       setCurrentVideoUrl(program.trailer_link);
       setPlayBackType("ad");
     } else {
-      setCurrentVideoUrl(program.streaming_link);
+      setCurrentVideoUrl(program.streaming_link ?? null);
       setPlayBackType("streaming");
     }
   }, [program]);
@@ -128,7 +121,7 @@ export default function ProgramDetail({ program }: Props) {
     if (channelPrograms.length > 0) {
       const nextProgram = channelPrograms[0];
       program = nextProgram;
-      setCurrentVideoUrl(nextProgram.streaming_link);
+      setCurrentVideoUrl(nextProgram.streaming_link ?? null);
       setPlayBackType("streaming");
     }
   };
@@ -163,7 +156,7 @@ export default function ProgramDetail({ program }: Props) {
           {playbackType === "ad" && (
             <button
               onClick={() => {
-                setCurrentVideoUrl(program.streaming_link);
+                setCurrentVideoUrl(program.streaming_link ?? null);
                 setPlayBackType("streaming");
               }}
               className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
@@ -178,7 +171,7 @@ export default function ProgramDetail({ program }: Props) {
               title="YouTube video player"
               frameBorder="0"
               onEnded={() => {
-                setCurrentVideoUrl(program.streaming_link);
+                setCurrentVideoUrl(program.streaming_link ?? null);
                 setPlayBackType("streaming");
               }}
               onLoad={() => {
@@ -194,7 +187,7 @@ export default function ProgramDetail({ program }: Props) {
             <video
               key={currentVideoUrl}
               className="w-full h-full"
-              src={currentVideoUrl}
+              src={currentVideoUrl ?? undefined}
               poster={program.thumbnail || undefined}
               controls
               autoPlay
@@ -202,7 +195,7 @@ export default function ProgramDetail({ program }: Props) {
               preload="metadata"
               onEnded={() => {
                 if (program.streaming_link) {
-                  setCurrentVideoUrl(program.streaming_link);
+                  setCurrentVideoUrl(program.streaming_link ?? null);
                   setPlayBackType("streaming");
                   playNext();
                 }
@@ -259,7 +252,7 @@ export default function ProgramDetail({ program }: Props) {
                   </h2>
                   <SeasonsAccordion
                     seasons={seasons}
-                    onEpisodeSelect={() => setCurrentVideoUrl(program?.streaming_link)}
+                    onEpisodeSelect={() => setCurrentVideoUrl(program?.streaming_link ?? null)}
                   />
                 </div>
               )}
@@ -319,14 +312,14 @@ export default function ProgramDetail({ program }: Props) {
             </Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
-            {channelPrograms.map((program, index) => (
+            {channelPrograms.map((item, index) => (
               <ProgramCard
                 key={index}
-                {...program}
-                href={`/programs/${program.id}`}
-                src={program.thumbnail}
-                slug={program.channel}
-                alt={program.title}
+                title={item.title}
+                src={item.thumbnail}
+                alt={item.title}
+                slug={`programs/${item.id}`}
+                href={`/programs/${item.id}`}
               />
             ))}
           </div>

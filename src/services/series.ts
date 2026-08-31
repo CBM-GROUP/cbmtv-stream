@@ -1,10 +1,25 @@
-import apiClient from "./api";
-import { API_Routes } from "@/lib/api-routes";
+import { publicApiClient } from "./api";
+import { API_Routes, buildPath } from "@/lib/api-routes";
+import { fetchAllPages } from "@/lib/fetchAllPages";
+import type { Episode, Program, Season } from "@/types";
 
 /* Series */
-export const listSeries = () => apiClient.get(API_Routes.listSeries);
 
-export const getSeriesSeasons = (seriesId: string | number) => apiClient.get(API_Routes.listSeasonsBySeriesId.replace('{{seriesID}}', String(seriesId)));
+/**
+ * `?content_type=series` was silently ignored by the backend until the Track 0A
+ * filter fix, so this returned the entire catalogue.
+ */
+export const listSeries = () =>
+  fetchAllPages<Program>(publicApiClient, API_Routes.listSeries);
 
-export const getSeasonEpisodes = (seasonId: string | number) => apiClient.get(API_Routes.getSeriesEpisodes.replace('{{season_id}}', String(seasonId)));
+export const getSeriesSeasons = (seriesId: string | number) =>
+  fetchAllPages<Season>(
+    publicApiClient,
+    buildPath(API_Routes.listSeasonsBySeriesId, { content_id: seriesId }),
+  );
 
+export const getSeasonEpisodes = (seasonId: string | number) =>
+  fetchAllPages<Episode>(
+    publicApiClient,
+    buildPath(API_Routes.listEpisodesInSeason, { season_id: seasonId }),
+  );
