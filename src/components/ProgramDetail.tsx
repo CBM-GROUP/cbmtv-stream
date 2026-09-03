@@ -6,13 +6,44 @@ import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
 import { getSeriesSeasons } from "@/services/series";
 import type { Program, Season } from "@/types";
-import { ChevronRight } from "lucide-react";
+import {
+  ChevronRight,
+  Maximize,
+  Minimize,
+  RectangleHorizontal,
+  Square,
+} from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
 
 type Props = {
   program: Program;
+};
+
+/**
+ * Display modes for the watch surface.
+ *
+ * "theater" is the default and is what a desktop viewer gets on first load: a
+ * wide, viewport-height-bounded frame, in the spirit of YouTube's theater mode.
+ * "standard" is the narrower boxed player, kept as an opt-out. Neither touches
+ * the Fullscreen API -- real fullscreen is a separate, explicitly user-driven
+ * action, never something the page enters on its own.
+ */
+type PlayerMode = "theater" | "standard";
+
+const PLAYER_MODE_KEY = "cbmtv:player-mode";
+
+/**
+ * Vendor-prefixed fullscreen, still needed for Safari (including iPadOS).
+ * Typed locally rather than widening the global lib types.
+ */
+type FullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
 };
 
 function getUrlType(url: string): "youtube" | "direct" | null {
@@ -61,7 +92,12 @@ export default function ProgramDetail({ program }: Props) {
     "ad"
   );
 
-  const { data: channelContent, isLoading: contentLoading } = useContent();
+  // Theater on both server and first client render, so the markup matches and
+  // hydration stays quiet. A stored preference is applied in an effect below.
+  const [playerMode, setPlayerMode] = useState<PlayerMode>("theater");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const { data: channelContent } = useContent();
 
   const handleShare = () => {
     const url = window.location.href;
@@ -79,11 +115,76 @@ export default function ProgramDetail({ program }: Props) {
   };
 
   useEffect(() => {
-    console.log(program);
     if (program.content_type === "series") {
       getSeriesSeasons(program.id).then(setSeasons);
     }
   }, [program]);
+
+  // Restore the stored display preference after mount. Reading localStorage
+  // during render would diverge from the server's markup.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(PLAYER_MODE_KEY);
+      if (stored === "theater" || stored === "standard") {
+        setPlayerMode(stored);
+      }
+    } catch {
+      // Private mode, or storage disabled. Theater is a fine default.
+    }
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    setPlayerMode((current) => {
+      const next: PlayerMode = current === "theater" ? "standard" : "theater";
+      try {
+        window.localStorage.setItem(PLAYER_MODE_KEY, next);
+      } catch {
+        // Preference simply will not persist; the toggle still works.
+      }
+      return next;
+    });
+  }, []);
+
+  /*
+   * Fullscreen is tracked rather than assumed, because it can be left by routes
+   * this component never sees -- the Escape key, the browser's own chrome, or
+   * the <video> element's native control. Listening to the event is the only
+   * way the surrounding layout and the button's own icon stay truthful.
+   */
+  useEffect(() => {
+    const onChange = () => {
+      const doc = document as FullscreenDocument;
+      const active = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+      setIsFullscreen(active === videoPlayerRef.current);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const doc = document as FullscreenDocument;
+    const band = videoPlayerRef.current as FullscreenElement | null;
+    if (!band) return;
+
+    const active = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+
+    // Requesting on the band rather than the media element means the YouTube
+    // iframe and the native <video> behave identically, and the black backdrop
+    // comes along so the frame stays centred and 16:9.
+    if (active) {
+      void (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
+    } else {
+      const request = band.requestFullscreen?.bind(band) ??
+        band.webkitRequestFullscreen?.bind(band);
+      // Rejects when the gesture is not trusted or the API is blocked by
+      // policy. The native <video> control remains as a fallback.
+      void Promise.resolve(request?.()).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     if (program.trailer_link) {
@@ -95,13 +196,24 @@ export default function ProgramDetail({ program }: Props) {
     }
   }, [program]);
 
+  /*
+   * Scroll the player into view when the viewer switches what is playing --
+   * picking an episode, skipping the trailer, hitting "Watch now".
+   *
+   * Not on the first pass, though. This effect also ran on mount, which yanked
+   * a freshly opened page downward before the reader had done anything; the
+   * player is already the top of the page there, so the scroll was pure motion.
+   */
+  const hasPlayedOnce = useRef(false);
   useEffect(() => {
-    if (videoPlayerRef.current) {
-      videoPlayerRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+    if (!hasPlayedOnce.current) {
+      hasPlayedOnce.current = true;
+      return;
     }
+    videoPlayerRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, [currentVideoUrl]);
 
   const urlType = currentVideoUrl ? getUrlType(currentVideoUrl) : null;
@@ -150,7 +262,8 @@ export default function ProgramDetail({ program }: Props) {
       */}
       <div
         ref={videoPlayerRef}
-        className="mb-8 w-full bg-black sticky top-[var(--header-h)] z-30"
+        data-player-mode={playerMode}
+        className="player-band group relative mb-8 w-full bg-black sticky top-[var(--header-h)] z-30"
       >
         <div className="player-frame">
           {playbackType === "ad" && (
@@ -204,10 +317,70 @@ export default function ProgramDetail({ program }: Props) {
               Your browser does not support video playback.
             </video>
           )}
+
+          {/*
+            Display controls, top-right so they never sit over the native
+            <video> control bar or a YouTube embed's own chrome along the
+            bottom. Hidden until the pointer enters the band or something
+            inside it takes keyboard focus, so they do not intrude on playback
+            -- but `focus-within` means they are always reachable by Tab.
+          */}
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+            {!isFullscreen && (
+              <button
+                type="button"
+                onClick={toggleMode}
+                aria-pressed={playerMode === "theater"}
+                title={
+                  playerMode === "theater"
+                    ? "Switch to standard view"
+                    : "Switch to theater view"
+                }
+                className="flex items-center justify-center h-9 w-9 rounded-md bg-black/60 text-white/90 hover:bg-black/80 hover:text-white cursor-pointer backdrop-blur-sm"
+              >
+                {playerMode === "theater" ? (
+                  <Square size={16} strokeWidth={1.75} aria-hidden="true" />
+                ) : (
+                  <RectangleHorizontal
+                    size={18}
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="sr-only">
+                  {playerMode === "theater"
+                    ? "Switch to standard view"
+                    : "Switch to theater view"}
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              className="flex items-center justify-center h-9 w-9 rounded-md bg-black/60 text-white/90 hover:bg-black/80 hover:text-white cursor-pointer backdrop-blur-sm"
+            >
+              {isFullscreen ? (
+                <Minimize size={16} strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Maximize size={16} strokeWidth={1.75} aria-hidden="true" />
+              )}
+              <span className="sr-only">
+                {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
-      {playbackType != "streaming" && (
-        <div className="container mx-auto px-4 mt-14 pb-24">
+      {/*
+        Always rendered. This block used to be gated on
+        `playbackType != "streaming"`, so pressing "Watch now" deleted the
+        synopsis, cast, genre, poster, share button and the whole seasons
+        accordion -- collapsing the page to a player and an "Up next" grid at
+        the exact moment a viewer is most likely to want to know what they are
+        watching, and taking the episode list away mid-series.
+      */}
+      <div className="container mx-auto px-4 mt-14 pb-24">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-20 items-start">
             <div className="md:col-span-3">
               <h2 className="text-3xl font-bold mb-6 text-white/80">
@@ -252,7 +425,18 @@ export default function ProgramDetail({ program }: Props) {
                   </h2>
                   <SeasonsAccordion
                     seasons={seasons}
-                    onEpisodeSelect={() => setCurrentVideoUrl(program?.streaming_link ?? null)}
+                    /*
+                      SeasonsAccordion hands over the selected episode's
+                      streaming_link. That argument used to be discarded and the
+                      parent programme's own link played instead, so every
+                      episode in every season played the same thing -- and for a
+                      series, whose streaming_link is usually null, often
+                      nothing at all.
+                    */
+                    onEpisodeSelect={(url) => {
+                      setCurrentVideoUrl(url);
+                      setPlayBackType("streaming");
+                    }}
                   />
                 </div>
               )}
@@ -300,8 +484,7 @@ export default function ProgramDetail({ program }: Props) {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </div>
       {channelPrograms.length > 0 && (
         <div className="w-full mx-auto p-5 lg:p-14 mb-24">
           <div className="mb-8 flex items-center justify-between">

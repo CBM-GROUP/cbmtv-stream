@@ -205,8 +205,10 @@ body {
  * surface follows.
  */
 :root {
-  --player-max-w: 1600px;
+  --player-max-w: 1280px;
+  --player-max-w-theater: 2400px;
   --player-viewport-gutter: 2rem;
+  --player-theater-gutter: 0px;
 }
 
 .player-frame {
@@ -229,11 +231,81 @@ body {
   }
 }
 
+/*
+ * Theater -- the default on the watch page.
+ *
+ * Same geometry as above with two of the three bounds relaxed: the ceiling goes
+ * to --player-max-w-theater so a large monitor is actually used, and the gutter
+ * goes to zero so the whole viewport below the header is available. The height
+ * budget stays, because it is what keeps the frame fully visible without
+ * scrolling; converting it back into a width (`* 16 / 9`) rather than setting
+ * `max-height` is what preserves the exact ratio -- `aspect-ratio` plus
+ * `max-height` letterboxes instead, since width stays definite at 100%.
+ *
+ * On a viewport wider than height * 16/9 -- most 16:9 desktops -- the height
+ * bound still binds and the surplus renders as the band's black backdrop. That
+ * residue is geometric, not a layout bug: a 16:9 frame cannot fill a viewport
+ * whose own ratio is wider than 16:9 without overflowing vertically. Below
+ * roughly 1000px wide the width bound binds first and the frame is edge to
+ * edge, which is why phones and tablets need no separate rule.
+ */
+[data-player-mode="theater"] .player-frame {
+  max-width: min(
+    var(--player-max-w-theater),
+    calc((100vh - var(--header-h) - var(--player-theater-gutter)) * 16 / 9)
+  );
+}
+
+@supports (height: 100dvh) {
+  [data-player-mode="theater"] .player-frame {
+    max-width: min(
+      var(--player-max-w-theater),
+      calc((100dvh - var(--header-h) - var(--player-theater-gutter)) * 16 / 9)
+    );
+  }
+}
+
 .player-frame > iframe,
 .player-frame > video {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/*
+ * Real fullscreen, entered from the band's own button. The <video> element's
+ * native control also works and lands here for the direct-MP4 case; the button
+ * exists because a YouTube iframe and a native video otherwise expose fullscreen
+ * in two different places.
+ *
+ * `position: sticky` and the header offset are meaningless once the element IS
+ * the viewport, so both are unwound. Sizing switches from "viewport minus
+ * header" to "the screen": width 100% of the screen, capped by the screen's own
+ * height converted back into a width, which keeps 16:9 exact and centres the
+ * frame with black on whichever axis is surplus.
+ *
+ * `100vh` (not `100vw`) is deliberate -- the layout guard forbids viewport
+ * *width* units because they include the scrollbar. There is no scrollbar here.
+ */
+.player-band:fullscreen {
+  position: static;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+/*
+ * One selector covers both modes: `.player-band:fullscreen .player-frame` is
+ * (0,3,0) and outranks the theater rule's (0,2,0), so entering fullscreen from
+ * either mode lands on the same geometry. No `max-height` here -- it would only
+ * ever fight `aspect-ratio`, never bind.
+ */
+.player-band:fullscreen .player-frame {
+  max-width: min(100%, calc(100vh * 16 / 9));
 }
 
 /*
