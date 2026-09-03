@@ -1,99 +1,81 @@
 "use client";
 
 import { Loader2, Search, SearchX, TriangleAlert } from "lucide-react";
-import MeiliSearch from "meilisearch";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-interface SearchResultItem {
-  id: string | number;
-  title: string;
-  description: string;
-}
-
-interface MeiliSearchHit {
-  id: string | number;
-  title: string;
-  // The backend only pushes id/title/genres into the index, so description is
-  // usually absent. Rendered only when it actually has content.
-  description?: string;
-}
+import { SafeImage } from "@/components/SafeImage";
+import { useSearch } from "@/hooks/useSearch";
 
 const MAX_RESULTS = 8;
 const DEBOUNCE_MS = 250;
 
-const meilisearchHost = process.env.NEXT_PUBLIC_MEILISEARCH_URL;
-const meilisearchApiKey = process.env.NEXT_PUBLIC_MEILISEARCH_API_KEY;
-
-// Previously this module threw at evaluation time when the env vars were
-// missing, which took down every page that imports the NavBar. Degrade to a
-// disabled input instead.
-const client =
-  meilisearchHost && meilisearchApiKey
-    ? new MeiliSearch({ host: meilisearchHost, apiKey: meilisearchApiKey })
-    : null;
-
-type Status = "idle" | "loading" | "ready" | "error";
-
+/**
+ * Catalogue search.
+ *
+ * This component used to build a MeiliSearch client in the browser from
+ * `NEXT_PUBLIC_MEILISEARCH_URL` / `NEXT_PUBLIC_MEILISEARCH_API_KEY` and query
+ * the search engine directly. Two problems with that, both now gone:
+ *
+ *   1. The key shipped to every visitor was the Meilisearch *master* key, so
+ *      anyone reading the bundle could delete the index.
+ *   2. It rendered index documents as results. When the index drifted from the
+ *      database -- which it had -- a hit linked to whatever programme happened
+ *      to own that id, or to a 404.
+ *
+ * It now calls `GET /api/content/search/`, which ranks through Meilisearch but
+ * returns rows read from the database, and falls back to a database query when
+ * the index cannot answer. See src/services/search.ts.
+ *
+ * Debouncing stays here rather than in the hook: the keystroke rate is a UI
+ * concern, and React Query keys off the settled term.
+ */
 export const Searchbar = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [results, setResults] = useState<SearchResultItem[]>([]);
-  const [status, setStatus] = useState<Status>("idle");
+  const [debouncedTerm, setDebouncedTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  // Monotonic id so a slow early response can never overwrite a newer one.
-  const requestIdRef = useRef(0);
+  const router = useRouter();
 
   const query = searchTerm.trim();
-  const index = useMemo(() => client?.index("content") ?? null, []);
 
+  // Settle the term before it becomes a query key. Clearing the input resets
+  // immediately, so the dropdown never shows stale results for 250ms.
   useEffect(() => {
     if (!query) {
-      requestIdRef.current += 1; // cancel any in-flight response
-      setResults([]);
-      setStatus("idle");
+      setDebouncedTerm("");
       return;
     }
-
-    if (!index) {
-      setStatus("error");
-      return;
-    }
-
-    const requestId = ++requestIdRef.current;
-    setStatus("loading");
-
-    const timer = setTimeout(async () => {
-      try {
-        const searchResult = await index.search(query, { limit: MAX_RESULTS });
-        if (requestId !== requestIdRef.current) return; // stale
-        setResults(
-          searchResult.hits.map((hit) => {
-            const meiliHit = hit as MeiliSearchHit;
-            return {
-              id: meiliHit.id,
-              title: meiliHit.title,
-              description: meiliHit.description ?? "",
-            };
-          })
-        );
-        setStatus("ready");
-      } catch {
-        if (requestId !== requestIdRef.current) return;
-        setResults([]);
-        setStatus("error");
-      }
-    }, DEBOUNCE_MS);
-
+    const timer = setTimeout(() => setDebouncedTerm(query), DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [query, index]);
+  }, [query]);
+
+  const { data, isPending, isError, isFetching } = useSearch(
+    debouncedTerm,
+    MAX_RESULTS,
+  );
+
+  const results = data?.hits ?? [];
+
+  // Three distinct states the dropdown has to tell apart:
+  //   searching -- a term is typed but no settled result set exists yet, which
+  //                includes the debounce window before any request is sent.
+  //   error     -- the request failed.
+  //   settled   -- a response arrived; zero results now means "no matches".
+  // `isPending` is React Query's "no data yet", and it also stays true for a
+  // disabled query, hence the explicit term checks.
+  const isDebouncing = Boolean(query) && query !== debouncedTerm;
+  const isSearching =
+    isDebouncing || (Boolean(debouncedTerm) && (isPending || isFetching));
+  const hasSettled = Boolean(debouncedTerm) && !isPending && !isError;
 
   // Reset the highlighted row whenever the result set changes.
   useEffect(() => {
     setActiveIndex(-1);
-  }, [results]);
+  }, [data]);
 
   // Close on outside click. More reliable than an onBlur timeout, which raced
   // with clicking a result.
@@ -130,7 +112,11 @@ export const Searchbar = () => {
     } else if (event.key === "Enter" && activeIndex >= 0) {
       const hit = results[activeIndex];
       if (hit) {
-        window.location.href = `/programs/${hit.id}`;
+        event.preventDefault();
+        setShowDropdown(false);
+        // router.push, not window.location.href: a full document reload threw
+        // away the React tree and replayed the 3s Preloader on every result.
+        router.push(`/programs/${hit.id}`);
       }
     }
   };
@@ -157,7 +143,7 @@ export const Searchbar = () => {
           aria-controls="search-results"
           aria-autocomplete="list"
         />
-        {status === "loading" && (
+        {isSearching && (
           <Loader2
             className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-[#666]"
             aria-hidden="true"
@@ -171,25 +157,26 @@ export const Searchbar = () => {
           role="listbox"
           className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 overflow-hidden"
         >
-          {status === "loading" && results.length === 0 && (
+          {isSearching && results.length === 0 && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Searching…
             </div>
           )}
 
-          {status === "error" && (
+          {isError && (
             <div className="flex items-start gap-2 px-4 py-3 text-sm text-red-600">
               <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
               <span>Search is unavailable right now. Please try again later.</span>
             </div>
           )}
 
-          {status === "ready" && results.length === 0 && (
+          {hasSettled && results.length === 0 && (
             <div className="flex items-start gap-2 px-4 py-3 text-sm text-gray-500">
               <SearchX className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
               <span>
-                No results for <span className="font-medium text-gray-700">“{query}”</span>
+                No results for{" "}
+                <span className="font-medium text-gray-700">{query}</span>
               </span>
             </div>
           )}
@@ -202,16 +189,34 @@ export const Searchbar = () => {
                     href={`/programs/${hit.id}`}
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => setShowDropdown(false)}
-                    className={`block px-4 py-2 cursor-pointer text-black ${
+                    className={`flex items-center gap-3 px-4 py-2 cursor-pointer text-black ${
                       i === activeIndex ? "bg-gray-100" : "hover:bg-gray-100"
                     }`}
                   >
-                    <div className="font-normal line-clamp-1">{hit.title}</div>
-                    {hit.description && (
-                      <div className="text-sm text-gray-600 line-clamp-1">
-                        {hit.description}
-                      </div>
-                    )}
+                    {/*
+                      A hit is a real Content row now, so a thumbnail is
+                      available. SafeImage covers the broken-URL case; the
+                      wrapper keeps row height stable when there is no image.
+                    */}
+                    <span className="h-10 w-16 shrink-0 overflow-hidden rounded bg-gray-200">
+                      {hit.thumbnail && (
+                        <SafeImage
+                          src={hit.thumbnail}
+                          alt=""
+                          width={64}
+                          height={40}
+                          className="h-10 w-16 object-cover"
+                        />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-normal line-clamp-1">
+                        {hit.title}
+                      </span>
+                      <span className="block text-sm text-gray-600 line-clamp-1">
+                        {[hit.content_type, hit.genre].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -221,11 +226,11 @@ export const Searchbar = () => {
       )}
 
       <span className="sr-only" aria-live="polite">
-        {status === "loading"
+        {isSearching
           ? "Searching"
-          : status === "error"
+          : isError
             ? "Search unavailable"
-            : status === "ready"
+            : hasSettled
               ? `${results.length} result${results.length === 1 ? "" : "s"}`
               : ""}
       </span>
