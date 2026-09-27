@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../cbmtv-backend"
+		},
+		{
+			"path": "../cbmtv-dashboard-git"
+		},
+		{
+			"path": "../cbmtv-mobileapp"
+		}
+	]
+}

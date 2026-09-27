@@ -39,8 +39,7 @@ const Slide = React.memo(function Slide({
 }) {
   return (
     <div
-      className="embla__slide relative w-full shrink-0 aspect-square
-  md:aspect-[21/9]"
+      className="embla__slide home-hero-slide relative w-full shrink-0"
     >
       {/* ---------- MEDIA (video or image) ---------- */}
       {slide.stream_link ? (
