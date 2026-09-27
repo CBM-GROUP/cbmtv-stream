@@ -53,6 +53,7 @@ export const API_Routes = {
   /* Adverts */
   createAd: "/api/content/adverts/",
   listAds: "/api/content/adverts/",
+  heroSettings: "/api/content/hero-settings/",
   getAdById: "/api/content/adverts/{{advert_id}}/",
   updateAd: "/api/content/adverts/{{advert_id}}/",
   deleteAd: "/api/content/adverts/{{advert_id}}/",
@@ -63,6 +64,9 @@ export const API_Routes = {
   getEpisodeById: "/api/content/episodes/{{episode_id}}/",
   updateEpisode: "/api/content/episodes/{{episode_id}}/",
   deleteEpisode: "/api/content/episodes/{{episode_id}}/",
+
+  /* Miniseries parts */
+  listMiniSeriesByContentId: "/api/content/miniseries/?content={{content_id}}",
 
   /* Seasons */
   listSeasonsBySeriesId: "/api/content/seasons/?content={{content_id}}",

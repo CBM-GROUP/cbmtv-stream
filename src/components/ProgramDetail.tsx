@@ -4,8 +4,8 @@ import SeasonsAccordion from "@/components/SeasonsAccordion";
 import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
-import { getSeriesSeasons } from "@/services/series";
-import type { Program, Season } from "@/types";
+import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
+import type { Episode, MiniSeries, Program, Season } from "@/types";
 import {
   ChevronRight,
   Maximize,
@@ -21,18 +21,15 @@ type Props = {
   program: Program;
 };
 
-/**
- * Display modes for the watch surface.
- *
- * "theater" is the default and is what a desktop viewer gets on first load: a
- * wide, viewport-height-bounded frame, in the spirit of YouTube's theater mode.
- * "standard" is the narrower boxed player, kept as an opt-out. Neither touches
- * the Fullscreen API -- real fullscreen is a separate, explicitly user-driven
- * action, never something the page enters on its own.
- */
 type PlayerMode = "theater" | "standard";
 
-const PLAYER_MODE_KEY = "cbmtv:player-mode";
+type PlayablePart = {
+  key: string;
+  title: string;
+  url: string;
+};
+
+const PLAYER_MODE_KEY = "cbmtv:player-mode-v2";
 
 /**
  * Vendor-prefixed fullscreen, still needed for Safari (including iPadOS).
@@ -84,6 +81,13 @@ function getYouTubeVideoId(url: string): string | null {
 
 export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
+  const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
+  const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
+  const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(30);
+  const [playbackEnded, setPlaybackEnded] = useState(false);
+  const [playbackSession, setPlaybackSession] = useState(0);
   // Content.trailer_link and .streaming_link are both nullable on the API.
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -92,9 +96,9 @@ export default function ProgramDetail({ program }: Props) {
     "ad"
   );
 
-  // Theater on both server and first client render, so the markup matches and
-  // hydration stays quiet. A stored preference is applied in an effect below.
-  const [playerMode, setPlayerMode] = useState<PlayerMode>("theater");
+  // Use the same default on the server and first client render. Restore a
+  // returning viewer's preference after mount to avoid a hydration mismatch.
+  const [playerMode, setPlayerMode] = useState<PlayerMode>("standard");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { data: channelContent } = useContent();
@@ -115,10 +119,40 @@ export default function ProgramDetail({ program }: Props) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    setSeasons([]);
+    setEpisodesBySeason({});
+    setMiniParts([]);
+    setCurrentPart(null);
+    setNextPart(null);
+    setPlaybackEnded(false);
+
     if (program.content_type === "series") {
-      getSeriesSeasons(program.id).then(setSeasons);
+      void getSeriesSeasons(program.id)
+        .then(async (loadedSeasons) => {
+          const ordered = [...loadedSeasons].sort((a, b) => a.season_number - b.season_number);
+          if (!cancelled) setSeasons(ordered);
+          const entries = await Promise.all(ordered.map(async (season) => {
+            const episodes = await getSeasonEpisodes(season.id).catch((error) => {
+              console.error(`Failed to load episodes for season ${season.id}`, error);
+              return [];
+            });
+            return [season.id, [...episodes].sort((a, b) => a.episode_number - b.episode_number)] as const;
+          }));
+          if (!cancelled) {
+            setEpisodesBySeason(Object.fromEntries(entries));
+          }
+        })
+        .catch((error) => console.error("Failed to load series episodes", error));
+    } else if (program.content_type === "miniseries") {
+      void getMiniSeriesParts(program.id)
+        .then((parts) => {
+          if (!cancelled) setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
+        })
+        .catch((error) => console.error("Failed to load miniseries parts", error));
     }
-  }, [program]);
+    return () => { cancelled = true; };
+  }, [program.id, program.content_type]);
 
   // Restore the stored display preference after mount. Reading localStorage
   // during render would diverge from the server's markup.
@@ -129,7 +163,7 @@ export default function ProgramDetail({ program }: Props) {
         setPlayerMode(stored);
       }
     } catch {
-      // Private mode, or storage disabled. Theater is a fine default.
+      // Private mode, or storage disabled. Keep the default watch layout.
     }
   }, []);
 
@@ -223,54 +257,88 @@ export default function ProgramDetail({ program }: Props) {
       : null;
 
   const channelPrograms = useMemo(() => {
-    if (!channelContent || !program?.channel) return [];
-    return channelContent.filter(
-      (p) => p.channel === program.channel && p.id !== program.id
-    );
-  }, [channelContent, program?.channel]);
+    if (!channelContent) return [];
+    const genre = program.genre?.trim().toLowerCase();
+    return channelContent
+      .filter((item) => item.id !== program.id &&
+        (item.content_type === program.content_type || (genre && item.genre?.trim().toLowerCase() === genre)))
+      .sort((a, b) => {
+        const aGenreMatch = Number(Boolean(genre && a.genre?.trim().toLowerCase() === genre));
+        const bGenreMatch = Number(Boolean(genre && b.genre?.trim().toLowerCase() === genre));
+        return bGenreMatch - aGenreMatch;
+      })
+      .slice(0, 12);
+  }, [channelContent, program.id, program.genre, program.content_type]);
 
-  const playNext = () => {
-    if (channelPrograms.length > 0) {
-      const nextProgram = channelPrograms[0];
-      program = nextProgram;
-      setCurrentVideoUrl(nextProgram.streaming_link ?? null);
-      setPlayBackType("streaming");
+  const orderedParts = useMemo<PlayablePart[]>(() => {
+    if (program.content_type === "series") {
+      return seasons.flatMap((season) => (episodesBySeason[season.id] ?? [])
+        .filter((episode) => Boolean(episode.streaming_link))
+        .map((episode) => ({
+          key: `episode:${episode.id}`,
+          title: episode.title,
+          url: episode.streaming_link as string,
+        })));
     }
-  };
+    if (program.content_type === "miniseries") {
+      return miniParts
+        .filter((part) => Boolean(part.streaming_link))
+        .map((part) => ({
+          key: `part:${part.id}`,
+          title: part.title,
+          url: part.streaming_link as string,
+        }));
+    }
+    return [];
+  }, [program.content_type, seasons, episodesBySeason, miniParts]);
+
+  const playPart = useCallback((part: PlayablePart) => {
+    setCurrentPart(part);
+    setCurrentVideoUrl(part.url);
+    setPlaybackSession((session) => session + 1);
+    setPlayBackType("streaming");
+    setNextPart(null);
+    setSecondsLeft(30);
+    setPlaybackEnded(false);
+  }, []);
+
+  const handlePlaybackEnded = useCallback(() => {
+    setPlaybackEnded(true);
+    if (playbackType !== "streaming" || !currentPart) return;
+    const index = orderedParts.findIndex((part) => part.key === currentPart.key);
+    if (index >= 0 && index + 1 < orderedParts.length) {
+      setSecondsLeft(30);
+      setNextPart(orderedParts[index + 1]);
+    }
+  }, [playbackType, currentPart, orderedParts]);
 
   useEffect(() => {
-    console.log("Similar Programs", channelPrograms);
-  }, [channelPrograms]);
+    if (!nextPart) return;
+    const timer = window.setInterval(() => setSecondsLeft((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [nextPart]);
+
+  useEffect(() => {
+    if (nextPart && secondsLeft === 0) playPart(nextPart);
+  }, [nextPart, secondsLeft, playPart]);
 
   return (
     <>
-      {/*
-        Outer band is full-width and sticky so the player follows the reader,
-        offset by --header-h so it parks *beneath* the NavBar rather than on top
-        of it. Its z-index is deliberately below the header's (see the stacking
-        tokens in globals.css); this used to be `z-100` against the header's
-        `z-50` and covered the navigation on every program page.
-
-        The inner .player-frame carries the single shared sizing rule: strict
-        16:9, centred, capped so it stays cinematic without swallowing a large
-        monitor. The class it replaces here, `aspect-16:9`, was not a real
-        Tailwind utility -- the colon parses as a variant separator, so it
-        generated no CSS at all and the container had no aspect ratio. The
-        <video> inside then resolved `h-full` against an auto-height parent and
-        rendered at full viewport width times its intrinsic ratio, which is why
-        the player ballooned on large screens.
-      */}
+      <div className="watch-layout" data-player-mode={playerMode}>
       <div
         ref={videoPlayerRef}
-        data-player-mode={playerMode}
-        className="player-band group relative mb-8 w-full bg-black sticky top-[var(--header-h)] z-30"
+        className="player-band group relative min-w-0 w-full bg-black"
       >
         <div className="player-frame">
           {playbackType === "ad" && (
             <button
               onClick={() => {
                 setCurrentVideoUrl(program.streaming_link ?? null);
+                setPlaybackSession((session) => session + 1);
                 setPlayBackType("streaming");
+                setCurrentPart(null);
+                setPlaybackEnded(false);
+                setNextPart(null);
               }}
               className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
             >
@@ -283,10 +351,6 @@ export default function ProgramDetail({ program }: Props) {
               src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
               title="YouTube video player"
               frameBorder="0"
-              onEnded={() => {
-                setCurrentVideoUrl(program.streaming_link ?? null);
-                setPlayBackType("streaming");
-              }}
               onLoad={() => {
                 if (playbackType === "ad") {
                   setPlayBackType("ad");
@@ -298,7 +362,7 @@ export default function ProgramDetail({ program }: Props) {
           )}
           {urlType === "direct" && (
             <video
-              key={currentVideoUrl}
+              key={`${currentVideoUrl}:${playbackSession}`}
               className="w-full h-full"
               src={currentVideoUrl ?? undefined}
               poster={program.thumbnail || undefined}
@@ -306,26 +370,30 @@ export default function ProgramDetail({ program }: Props) {
               autoPlay
               playsInline
               preload="metadata"
-              onEnded={() => {
-                if (program.streaming_link) {
-                  setCurrentVideoUrl(program.streaming_link ?? null);
-                  setPlayBackType("streaming");
-                  playNext();
-                }
+              onEnded={handlePlaybackEnded}
+              onPlay={() => {
+                if (!nextPart) setPlaybackEnded(false);
               }}
             >
               Your browser does not support video playback.
             </video>
           )}
 
-          {/*
-            Display controls, top-right so they never sit over the native
-            <video> control bar or a YouTube embed's own chrome along the
-            bottom. Hidden until the pointer enters the band or something
-            inside it takes keyboard focus, so they do not intrude on playback
-            -- but `focus-within` means they are always reachable by Tab.
-          */}
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+          {nextPart && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 p-4">
+              <div role="dialog" aria-label="Next episode" className="max-h-full w-full max-w-md overflow-y-auto rounded-xl border border-white/20 bg-neutral-950 p-6 text-center shadow-xl">
+                <p className="text-sm font-semibold uppercase tracking-wide text-teal-400">Up next</p>
+                <h2 className="mt-2 text-xl font-bold text-white">{nextPart.title}</h2>
+                <p className="mt-3 text-sm text-white/70">Starting in {secondsLeft} seconds</p>
+                <div className="mt-6 flex justify-center gap-3">
+                  <Button onClick={() => playPart(nextPart)} className="bg-teal-500 text-black hover:bg-teal-400">Watch next</Button>
+                  <Button onClick={() => setNextPart(null)} className="border border-white/30 bg-transparent text-white hover:bg-white/10">Cancel</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
             {!isFullscreen && (
               <button
                 type="button"
@@ -333,10 +401,10 @@ export default function ProgramDetail({ program }: Props) {
                 aria-pressed={playerMode === "theater"}
                 title={
                   playerMode === "theater"
-                    ? "Switch to standard view"
-                    : "Switch to theater view"
+                    ? "Switch to default view"
+                    : "Switch to cinema mode"
                 }
-                className="flex items-center justify-center h-9 w-9 rounded-md bg-black/60 text-white/90 hover:bg-black/80 hover:text-white cursor-pointer backdrop-blur-sm"
+                className="flex items-center gap-2 h-9 px-3 rounded-md bg-black/70 text-white hover:bg-black/90 cursor-pointer backdrop-blur-sm"
               >
                 {playerMode === "theater" ? (
                   <Square size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -347,10 +415,10 @@ export default function ProgramDetail({ program }: Props) {
                     aria-hidden="true"
                   />
                 )}
-                <span className="sr-only">
+                <span className="text-sm">
                   {playerMode === "theater"
-                    ? "Switch to standard view"
-                    : "Switch to theater view"}
+                    ? "Default view"
+                    : "Cinema mode"}
                 </span>
               </button>
             )}
@@ -358,7 +426,7 @@ export default function ProgramDetail({ program }: Props) {
               type="button"
               onClick={toggleFullscreen}
               title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              className="flex items-center justify-center h-9 w-9 rounded-md bg-black/60 text-white/90 hover:bg-black/80 hover:text-white cursor-pointer backdrop-blur-sm"
+              className="flex items-center justify-center h-9 w-9 rounded-md bg-black/70 text-white hover:bg-black/90 cursor-pointer backdrop-blur-sm"
             >
               {isFullscreen ? (
                 <Minimize size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -372,6 +440,55 @@ export default function ProgramDetail({ program }: Props) {
           </div>
         </div>
       </div>
+      <aside className="watch-sidebar" aria-label="Movie information">
+        <div className="flex items-start gap-4 border-b border-white/10 pb-6">
+          <SafeImage
+            src={program.thumbnail}
+            alt={`${program.title} poster`}
+            width={300}
+            height={450}
+            className="h-36 aspect-3/4 w-auto rounded-md object-cover"
+          />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-white">{program.title}</h1>
+            <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
+            <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
+          </div>
+        </div>
+        <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
+          {program.description}
+        </p>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <Button
+            onClick={() => {
+              setCurrentVideoUrl(program.streaming_link ?? null);
+              setPlaybackSession((session) => session + 1);
+              setPlayBackType("streaming");
+              setCurrentPart(null);
+              setNextPart(null);
+              setPlaybackEnded(false);
+            }}
+            disabled={!program.streaming_link || (currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
+            className="h-11 w-full rounded-lg bg-gradient-to-tr from-chart-4/60 to-chart-5/60 text-black uppercase cursor-pointer"
+          >
+            Watch now
+          </Button>
+          <Button
+            onClick={handleShare}
+            className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
+          >
+            {isCopied ? "Copied!" : "Share"}
+          </Button>
+        </div>
+      </aside>
+      </div>
+      {playbackEnded && !nextPart && (
+        <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
+          <span>{playbackType === "ad" ? "Trailer finished." : "Playback finished."}</span>
+          {channelPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
+          <Link href="/" className="text-teal-400 underline">Back to home</Link>
+        </div>
+      )}
       {/*
         Always rendered. This block used to be gated on
         `playbackType != "streaming"`, so pressing "Watch now" deleted the
@@ -381,8 +498,8 @@ export default function ProgramDetail({ program }: Props) {
         watching, and taking the episode list away mid-series.
       */}
       <div className="container mx-auto px-4 mt-14 pb-24">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-20 items-start">
-            <div className="md:col-span-3">
+          <div className="max-w-4xl">
+            <div>
               <h2 className="text-3xl font-bold mb-6 text-white/80">
                 Synopsis
               </h2>
@@ -425,70 +542,48 @@ export default function ProgramDetail({ program }: Props) {
                   </h2>
                   <SeasonsAccordion
                     seasons={seasons}
-                    /*
-                      SeasonsAccordion hands over the selected episode's
-                      streaming_link. That argument used to be discarded and the
-                      parent programme's own link played instead, so every
-                      episode in every season played the same thing -- and for a
-                      series, whose streaming_link is usually null, often
-                      nothing at all.
-                    */
-                    onEpisodeSelect={(url) => {
-                      setCurrentVideoUrl(url);
-                      setPlayBackType("streaming");
+                    episodesBySeason={episodesBySeason}
+                    onEpisodeSelect={(episode) => {
+                      if (episode.streaming_link) playPart({
+                        key: `episode:${episode.id}`,
+                        title: episode.title,
+                        url: episode.streaming_link,
+                      });
                     }}
                   />
                 </div>
               )}
-            </div>
-            <div className="md:col-span-2">
-              <div className="flex items-start h-fit w-full border-b border-white/10 pb-10 mb-10">
-                <div className="flex flex-col sm:flex-row items-start w-full space-y-6 sm:space-y-0 sm:space-x-6">
-                  <SafeImage
-                    src={program.thumbnail}
-                    alt={`${program.title} poster`}
-                    width={300}
-                    height={450}
-                    className="h-40 aspect-3/4 w-auto rounded-md"
-                  />
-                  <div className="w-full">
-                    <h1 className="text-3xl sm:text-4xl font-bold mb-4 line-clamp-2">
-                      {program.title}
-                    </h1>
-                    <p className="text-sm text-white/70 flex flex-col space-y-2 mt-3">
-                      <span>
-                        <span className="text-white font-semibold">
-                          Duration:
-                        </span>{" "}
-                        {program.duration || "N/A"}
-                      </span>
-                      <span>{program.genre || "N/A"}</span>
-                    </p>
+              {program.content_type === "miniseries" && miniParts.length > 0 && (
+                <div className="mt-10">
+                  <h2 className="mb-6 text-3xl font-bold text-white/80">Parts</h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {miniParts.map((part) => (
+                      <button
+                        key={part.id}
+                        type="button"
+                        disabled={!part.streaming_link}
+                        onClick={() => {
+                          if (part.streaming_link) playPart({
+                            key: `part:${part.id}`,
+                            title: part.title,
+                            url: part.streaming_link,
+                          });
+                        }}
+                        className="rounded-lg border border-white/10 p-4 text-left text-white/80 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {part.miniseries_no}. {part.title}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-6 mt-6 w-full">
-                <Button
-                  onClick={() => setCurrentVideoUrl(program.streaming_link)}
-                  disabled={currentVideoUrl === program.streaming_link}
-                  className="rounded-lg bg-gradient-to-tr to-chart-5/60 from-chart-4/60 h-12 w-full text-md text-black uppercase cursor-pointer m-0 flex items-center justify-center"
-                >
-                  Watch now
-                </Button>
-                <Button
-                  onClick={handleShare}
-                  className="rounded-lg hover:bg-white/60 bg-transparent to-chart-5 from-chart-4 h-12 w-full text-md text-white/40 font-light uppercase cursor-pointer border border-white/20"
-                >
-                  {isCopied ? "Copied!" : "Share"}
-                </Button>
-              </div>
+              )}
             </div>
           </div>
       </div>
       {channelPrograms.length > 0 && (
-        <div className="w-full mx-auto p-5 lg:p-14 mb-24">
+        <div id="similar-programs" className="w-full mx-auto p-5 lg:p-14 mb-24">
           <div className="mb-8 flex items-center justify-between">
-            <h3 className="text-xl font-medium">Up next</h3>
+            <h3 className="text-xl font-medium">Similar titles</h3>
             <Link href="/programs" className="font-normal text-md flex items-center space-x-3">
               <small>More</small>
               <ChevronRight size={18} strokeWidth={1.5}/>
