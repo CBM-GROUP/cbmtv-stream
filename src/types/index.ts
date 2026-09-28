@@ -198,6 +198,9 @@ export interface Advert {
   advert_link: string | null;
   stream_link: string | null;
   advert_thumbnail: string | null;
+  /** Absent until the hero-settings backend migration is deployed. */
+  show_in_hero?: boolean;
+  hero_order?: number;
 }
 
 export interface CreateAdData {
