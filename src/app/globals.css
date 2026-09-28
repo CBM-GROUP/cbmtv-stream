@@ -161,20 +161,8 @@ body {
  * ---------------------------------------------------------------------------
  * Layout tokens
  * ---------------------------------------------------------------------------
- * --header-h is the height of the sticky NavBar, used by anything that has to
- * sit directly beneath it (currently the program-detail player). Below `md`
- * the NavBar renders a second row holding the search field, hence the taller
- * value. These are measured from the current NavBar; Phase 4 reworks the
- * mobile header and should revisit the small-screen value.
- *
- * Stacking contract for sticky chrome -- the header always wins:
- *
- *   z-50  NavBar          (src/components/NavBar.tsx)
- *   z-30  detail player   (src/components/ProgramDetail.tsx)
- *
- * Before this, the player was `z-100` against the header's `z-50` and covered
- * the navigation on every program page. Anything sticky added later belongs
- * below z-50.
+ * --header-h reflects the NavBar's two-row mobile layout. Other page elements
+ * can use it when they need to sit directly beneath the header.
  */
 :root {
   --header-h: 152px;
@@ -186,83 +174,76 @@ body {
   }
 }
 
-/*
- * ---------------------------------------------------------------------------
- * Video player standard
- * ---------------------------------------------------------------------------
- * One sizing rule for every playback surface. Requirements: strict 16:9,
- * centred, responsive, cinematic, bounded on very large screens, and never
- * taller than the usable viewport beneath the header.
- *
- * The height bound is expressed as a *width* cap rather than `max-height`
- * because `aspect-ratio` plus `max-height` breaks the ratio: width stays
- * definite at 100% while height gets clamped, which letterboxes the frame.
- * Converting the available height back into a width via `* 16 / 9` keeps the
- * ratio exact and lets `min()` pick whichever bound binds first.
- *
- * --player-max-w is the "stop growing" point on large monitors. It is a
- * starting value, not a fixed design rule -- adjust it here and every player
- * surface follows.
+/* The default watch view uses the page width for video and movie information.
+ * Cinema mode uses the space between the header and viewport bottom.
  */
-:root {
-  --player-max-w: 1280px;
-  --player-max-w-theater: 2400px;
-  --player-viewport-gutter: 2rem;
-  --player-theater-gutter: 0px;
+.watch-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  padding: 0 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 1200px) {
+  .watch-layout[data-player-mode="standard"] {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 24%);
+  }
+}
+
+.watch-layout[data-player-mode="theater"] {
+  padding-inline: 0;
+}
+
+.watch-layout[data-player-mode="theater"] .player-band {
+  height: calc(100vh - var(--header-h));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@supports (height: 100dvh) {
+  .watch-layout[data-player-mode="theater"] .player-band {
+    height: calc(100dvh - var(--header-h));
+  }
+}
+
+.watch-layout[data-player-mode="theater"] .player-frame {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+}
+
+.watch-layout[data-player-mode="theater"] .watch-sidebar {
+  margin-inline: auto;
+  width: min(100%, 1280px);
+  padding-inline: 1.5rem;
+}
+
+.watch-sidebar {
+  min-width: 0;
+  color: white;
+}
+
+.home-hero-slide {
+  height: calc(100vh - var(--header-h));
+  padding: 0;
+}
+
+@supports (height: 100dvh) {
+  .home-hero-slide {
+    height: calc(100dvh - var(--header-h));
+  }
 }
 
 .player-frame {
   width: 100%;
-  max-width: min(
-    var(--player-max-w),
-    calc((100vh - var(--header-h) - var(--player-viewport-gutter)) * 16 / 9)
-  );
+  max-width: 2400px;
   margin-inline: auto;
   aspect-ratio: 16 / 9;
   position: relative;
-}
-
-@supports (height: 100dvh) {
-  .player-frame {
-    max-width: min(
-      var(--player-max-w),
-      calc((100dvh - var(--header-h) - var(--player-viewport-gutter)) * 16 / 9)
-    );
-  }
-}
-
-/*
- * Theater -- the default on the watch page.
- *
- * Same geometry as above with two of the three bounds relaxed: the ceiling goes
- * to --player-max-w-theater so a large monitor is actually used, and the gutter
- * goes to zero so the whole viewport below the header is available. The height
- * budget stays, because it is what keeps the frame fully visible without
- * scrolling; converting it back into a width (`* 16 / 9`) rather than setting
- * `max-height` is what preserves the exact ratio -- `aspect-ratio` plus
- * `max-height` letterboxes instead, since width stays definite at 100%.
- *
- * On a viewport wider than height * 16/9 -- most 16:9 desktops -- the height
- * bound still binds and the surplus renders as the band's black backdrop. That
- * residue is geometric, not a layout bug: a 16:9 frame cannot fill a viewport
- * whose own ratio is wider than 16:9 without overflowing vertically. Below
- * roughly 1000px wide the width bound binds first and the frame is edge to
- * edge, which is why phones and tablets need no separate rule.
- */
-[data-player-mode="theater"] .player-frame {
-  max-width: min(
-    var(--player-max-w-theater),
-    calc((100vh - var(--header-h) - var(--player-theater-gutter)) * 16 / 9)
-  );
-}
-
-@supports (height: 100dvh) {
-  [data-player-mode="theater"] .player-frame {
-    max-width: min(
-      var(--player-max-w-theater),
-      calc((100dvh - var(--header-h) - var(--player-theater-gutter)) * 16 / 9)
-    );
-  }
 }
 
 .player-frame > iframe,
@@ -270,17 +251,14 @@ body {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: contain;
 }
 
 /*
- * Real fullscreen, entered from the band's own button. The <video> element's
- * native control also works and lands here for the direct-MP4 case; the button
- * exists because a YouTube iframe and a native video otherwise expose fullscreen
- * in two different places.
+ * Real fullscreen, entered from the band's button. The <video> element's native
+ * fullscreen control also works for direct video.
  *
- * `position: sticky` and the header offset are meaningless once the element IS
- * the viewport, so both are unwound. Sizing switches from "viewport minus
- * header" to "the screen": width 100% of the screen, capped by the screen's own
+ * Sizing switches from page width to the screen: width 100% of the screen, capped by the screen's own
  * height converted back into a width, which keeps 16:9 exact and centres the
  * frame with black on whichever axis is surplus.
  *
@@ -306,6 +284,17 @@ body {
  */
 .player-band:fullscreen .player-frame {
   max-width: min(100%, calc(100vh * 16 / 9));
+}
+
+/* Fullscreen must override cinema mode's header-aware height and width. */
+.watch-layout[data-player-mode="theater"] .player-band:fullscreen {
+  height: 100%;
+}
+
+.watch-layout[data-player-mode="theater"] .player-band:fullscreen .player-frame {
+  width: 100%;
+  height: 100%;
+  max-width: none;
 }
 
 /*

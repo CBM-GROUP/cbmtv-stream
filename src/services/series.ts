@@ -1,7 +1,7 @@
 import { publicApiClient } from "./api";
 import { API_Routes, buildPath } from "@/lib/api-routes";
 import { fetchAllPages } from "@/lib/fetchAllPages";
-import type { Episode, Program, Season } from "@/types";
+import type { Episode, MiniSeries, Program, Season } from "@/types";
 
 /* Series */
 
@@ -22,4 +22,10 @@ export const getSeasonEpisodes = (seasonId: string | number) =>
   fetchAllPages<Episode>(
     publicApiClient,
     buildPath(API_Routes.listEpisodesInSeason, { season_id: seasonId }),
+  );
+
+export const getMiniSeriesParts = (contentId: string | number) =>
+  fetchAllPages<MiniSeries>(
+    publicApiClient,
+    buildPath(API_Routes.listMiniSeriesByContentId, { content_id: contentId }),
   );
