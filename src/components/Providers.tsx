@@ -1,14 +1,12 @@
 "use client";
 
-import { UserProvider } from "@/context/UserContext";
 import QueryProvider from "@/components/QueryProvider";
+import { LibraryProvider } from "@/context/LibraryContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
-      <UserProvider>
-        {children}
-      </UserProvider>
+      <LibraryProvider>{children}</LibraryProvider>
     </QueryProvider>
   );
 }

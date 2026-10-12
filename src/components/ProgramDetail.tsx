@@ -16,9 +16,15 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
+import { SaveButton } from "./SaveButton";
+import { TrackedVideo, type PlaybackTarget } from "./TrackedVideo";
+import { TrackedYouTube } from "./TrackedYouTube";
+import { useLibrary } from "@/context/LibraryContext";
+import { progressPartKey } from "@/lib/library-playback";
 
 type Props = {
   program: Program;
+  resumeRequested?: boolean;
 };
 
 type PlayerMode = "theater" | "standard";
@@ -27,6 +33,8 @@ type PlayablePart = {
   key: string;
   title: string;
   url: string;
+  episode?: number;
+  miniseries?: number;
 };
 
 const PLAYER_MODE_KEY = "cbmtv:player-mode-v2";
@@ -79,15 +87,21 @@ function getYouTubeVideoId(url: string): string | null {
   }
 }
 
-export default function ProgramDetail({ program }: Props) {
+export default function ProgramDetail({ program, resumeRequested = false }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
   const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
+  const [partsLoaded, setPartsLoaded] = useState(false);
+  const [resumeUnavailable, setResumeUnavailable] = useState(false);
   const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
   const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [playbackEnded, setPlaybackEnded] = useState(false);
   const [playbackSession, setPlaybackSession] = useState(0);
+  const [resumeAt, setResumeAt] = useState(0);
+  const autoResumeDone = useRef(false);
+  const { progress } = useLibrary();
+  const savedProgress = progress.items.find((row) => row.content.id === program.id && !row.completed);
   // Content.trailer_link and .streaming_link are both nullable on the API.
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -123,9 +137,12 @@ export default function ProgramDetail({ program }: Props) {
     setSeasons([]);
     setEpisodesBySeason({});
     setMiniParts([]);
+    setPartsLoaded(program.content_type !== "series" && program.content_type !== "miniseries");
+    setResumeUnavailable(false);
     setCurrentPart(null);
     setNextPart(null);
     setPlaybackEnded(false);
+    autoResumeDone.current = false;
 
     if (program.content_type === "series") {
       void getSeriesSeasons(program.id)
@@ -141,15 +158,19 @@ export default function ProgramDetail({ program }: Props) {
           }));
           if (!cancelled) {
             setEpisodesBySeason(Object.fromEntries(entries));
+            setPartsLoaded(true);
           }
         })
-        .catch((error) => console.error("Failed to load series episodes", error));
+        .catch((error) => { console.error("Failed to load series episodes", error); if (!cancelled) setPartsLoaded(true); });
     } else if (program.content_type === "miniseries") {
       void getMiniSeriesParts(program.id)
         .then((parts) => {
-          if (!cancelled) setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
+          if (!cancelled) {
+            setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
+            setPartsLoaded(true);
+          }
         })
-        .catch((error) => console.error("Failed to load miniseries parts", error));
+        .catch((error) => { console.error("Failed to load miniseries parts", error); if (!cancelled) setPartsLoaded(true); });
     }
     return () => { cancelled = true; };
   }, [program.id, program.content_type]);
@@ -278,6 +299,7 @@ export default function ProgramDetail({ program }: Props) {
           key: `episode:${episode.id}`,
           title: episode.title,
           url: episode.streaming_link as string,
+          episode: episode.id,
         })));
     }
     if (program.content_type === "miniseries") {
@@ -287,13 +309,16 @@ export default function ProgramDetail({ program }: Props) {
           key: `part:${part.id}`,
           title: part.title,
           url: part.streaming_link as string,
+          miniseries: part.id,
         }));
     }
     return [];
   }, [program.content_type, seasons, episodesBySeason, miniParts]);
 
-  const playPart = useCallback((part: PlayablePart) => {
+  const playPart = useCallback((part: PlayablePart, startAt = 0) => {
+    setResumeUnavailable(false);
     setCurrentPart(part);
+    setResumeAt(startAt);
     setCurrentVideoUrl(part.url);
     setPlaybackSession((session) => session + 1);
     setPlayBackType("streaming");
@@ -301,6 +326,37 @@ export default function ProgramDetail({ program }: Props) {
     setSecondsLeft(30);
     setPlaybackEnded(false);
   }, []);
+
+  const resumePlayback = useCallback(() => {
+    if (!savedProgress) return;
+    const key = progressPartKey(savedProgress);
+    if (key) {
+      const part = orderedParts.find((item) => item.key === key);
+      if (part) playPart(part, savedProgress.position_seconds);
+      else if (partsLoaded) setResumeUnavailable(true);
+    } else if (program.streaming_link) {
+      setResumeUnavailable(false);
+      setCurrentPart(null);
+      setResumeAt(savedProgress.position_seconds);
+      setCurrentVideoUrl(program.streaming_link);
+      setPlaybackSession((session) => session + 1);
+      setPlayBackType("streaming");
+      setNextPart(null);
+      setPlaybackEnded(false);
+    }
+  }, [savedProgress, orderedParts, partsLoaded, playPart, program.streaming_link]);
+
+  useEffect(() => {
+    if (!resumeRequested || autoResumeDone.current || !savedProgress) return;
+    const key = progressPartKey(savedProgress);
+    if (key && !orderedParts.some((part) => part.key === key) && !partsLoaded) return;
+    autoResumeDone.current = true;
+    resumePlayback();
+  }, [resumeRequested, savedProgress, orderedParts, partsLoaded, resumePlayback]);
+
+  const playbackTarget: PlaybackTarget | null = playbackType === "streaming" && currentVideoUrl
+    ? { content: program.id, episode: currentPart?.episode ?? null, miniseries: currentPart?.miniseries ?? null, startAt: resumeAt }
+    : null;
 
   const handlePlaybackEnded = useCallback(() => {
     setPlaybackEnded(true);
@@ -337,6 +393,7 @@ export default function ProgramDetail({ program }: Props) {
                 setPlaybackSession((session) => session + 1);
                 setPlayBackType("streaming");
                 setCurrentPart(null);
+                setResumeAt(0);
                 setPlaybackEnded(false);
                 setNextPart(null);
               }}
@@ -346,37 +403,19 @@ export default function ProgramDetail({ program }: Props) {
             </button>
           )}
           {urlType === "youtube" && youtubeId && (
-            <iframe
-              className="w-full h-full"
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
-              title="YouTube video player"
-              frameBorder="0"
-              onLoad={() => {
-                if (playbackType === "ad") {
-                  setPlayBackType("ad");
-                }
-              }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            ></iframe>
+            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} target={playbackTarget} onEnded={handlePlaybackEnded} />
           )}
           {urlType === "direct" && (
-            <video
+            <TrackedVideo
               key={`${currentVideoUrl}:${playbackSession}`}
-              className="w-full h-full"
-              src={currentVideoUrl ?? undefined}
+              src={currentVideoUrl as string}
               poster={program.thumbnail || undefined}
-              controls
-              autoPlay
-              playsInline
-              preload="metadata"
+              target={playbackTarget}
               onEnded={handlePlaybackEnded}
               onPlay={() => {
                 if (!nextPart) setPlaybackEnded(false);
               }}
-            >
-              Your browser does not support video playback.
-            </video>
+            />
           )}
 
           {nextPart && (
@@ -449,11 +488,12 @@ export default function ProgramDetail({ program }: Props) {
             height={450}
             className="h-36 aspect-3/4 w-auto rounded-md object-cover"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-white">{program.title}</h1>
             <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
             <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
           </div>
+          <SaveButton contentId={program.id} title={program.title} className="relative shrink-0" />
         </div>
         <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
           {program.description}
@@ -465,6 +505,7 @@ export default function ProgramDetail({ program }: Props) {
               setPlaybackSession((session) => session + 1);
               setPlayBackType("streaming");
               setCurrentPart(null);
+              setResumeAt(0);
               setNextPart(null);
               setPlaybackEnded(false);
             }}
@@ -473,6 +514,9 @@ export default function ProgramDetail({ program }: Props) {
           >
             Watch now
           </Button>
+          {savedProgress && (
+            <Button onClick={resumePlayback} className="h-11 w-full rounded-lg border border-teal-400/50 bg-transparent text-teal-300 hover:bg-teal-400/10">Resume</Button>
+          )}
           <Button
             onClick={handleShare}
             className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
@@ -489,6 +533,7 @@ export default function ProgramDetail({ program }: Props) {
           <Link href="/" className="text-teal-400 underline">Back to home</Link>
         </div>
       )}
+      {resumeUnavailable && <p role="status" className="mx-auto mt-5 max-w-5xl px-6 text-amber-200">That saved episode or part is unavailable. Choose another from the list below.</p>}
       {/*
         Always rendered. This block used to be gated on
         `playbackType != "streaming"`, so pressing "Watch now" deleted the
@@ -548,6 +593,7 @@ export default function ProgramDetail({ program }: Props) {
                         key: `episode:${episode.id}`,
                         title: episode.title,
                         url: episode.streaming_link,
+                        episode: episode.id,
                       });
                     }}
                   />
@@ -567,6 +613,7 @@ export default function ProgramDetail({ program }: Props) {
                             key: `part:${part.id}`,
                             title: part.title,
                             url: part.streaming_link,
+                            miniseries: part.id,
                           });
                         }}
                         className="rounded-lg border border-white/10 p-4 text-left text-white/80 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
@@ -593,6 +640,7 @@ export default function ProgramDetail({ program }: Props) {
             {channelPrograms.map((item, index) => (
               <ProgramCard
                 key={index}
+                id={item.id}
                 title={item.title}
                 src={item.thumbnail}
                 alt={item.title}

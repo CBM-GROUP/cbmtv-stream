@@ -1,7 +1,7 @@
 "use client";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -53,19 +53,7 @@ export const LoginForm = () => {
     }
   };
 
-  async function fetchGoogleUserInfo(accessToken: any) {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!res.ok) throw new Error('Failed to fetch user info');
-    const data = await res.json();
-    return data;
-  }
-
-  const handleGoogleLogin = async (decodedData: any) => {
+  const handleGoogleLogin = async (decodedData: { name?: string; email: string; sub: string }) => {
     try {
       const response = await apiClient.post("/api/accounts/login/google/direct/", {
         name: decodedData.name,
@@ -162,7 +150,7 @@ export const LoginForm = () => {
         <GoogleLogin
           onSuccess={credentialResponse => {
             if (!credentialResponse?.credential) return;
-            const decodedData = jwtDecode(credentialResponse?.credential);
+            const decodedData = jwtDecode<{ name?: string; email: string; sub: string }>(credentialResponse?.credential);
             handleGoogleLogin(decodedData);
           }}
           onError={() => {
@@ -311,7 +299,7 @@ export const LoginForm = () => {
                 <GoogleLogin
                   onSuccess={credentialResponse => {
                     if (!credentialResponse?.credential) return;
-                    const decodedData = jwtDecode(credentialResponse?.credential);
+                    const decodedData = jwtDecode<{ name?: string; email: string; sub: string }>(credentialResponse?.credential);
                     handleGoogleLogin(decodedData);
                   }}
                   onError={() => {

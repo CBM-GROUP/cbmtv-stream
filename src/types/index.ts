@@ -110,6 +110,32 @@ export interface Program {
 /** Alias for code that would rather say what the backend says. */
 export type Content = Program;
 
+/** library/serializers.py: account-scoped SavedItem and WatchProgress. */
+export interface SavedItem {
+  id: number;
+  content: Program;
+  created_at: string;
+}
+
+export interface WatchProgress {
+  id: number;
+  content: Program;
+  episode: number | null;
+  miniseries: number | null;
+  position_seconds: number;
+  duration_seconds: number;
+  completed: boolean;
+  updated_at: string;
+}
+
+export interface WatchProgressInput {
+  content: number;
+  episode?: number | null;
+  miniseries?: number | null;
+  position_seconds: number;
+  duration_seconds?: number;
+}
+
 export interface CreateContentData {
   title: string;
   description?: string;

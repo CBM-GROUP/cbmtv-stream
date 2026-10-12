@@ -23,11 +23,12 @@ import { Searchbar } from "./Searchbar";
 import { Button } from "./ui/button";
 
 export const NavBar = () => {
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const links = [
     { href: "/", label: "Stream Bird" },
     { href: "/channels", label: "Channel Box" },
     { href: "/programs", label: "Trends" },
+    { href: "/saved", label: "Saved" },
   ];
 
   useEffect(() => {

@@ -18,7 +18,7 @@ export async function generateMetadata({
       title: `CBM TV | ${program.data.title}`,
       description: program.data.description,
     };
-  } catch (error) {
+  } catch {
     return {
       title: "CBM TV | Program not found",
       description: "The requested program could not be found.",
@@ -28,19 +28,22 @@ export async function generateMetadata({
 
 export default async function ProgramDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ resume?: string }>;
 }) {
   try {
     const awaitedParams = await params;
     const program = await getContentById(awaitedParams.id);
+    const query = await searchParams;
 
     if (!program) {
       notFound();
     }
 
-    return <ProgramDetail program={program.data} />;
-  } catch (error) {
+    return <ProgramDetail program={program.data} resumeRequested={query.resume === "1"} />;
+  } catch {
     notFound();
   }
 }
