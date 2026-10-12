@@ -266,11 +266,9 @@ export interface LoginData {
   password: string;
 }
 
-/** The decoded Google identity POSTed to /login/google/direct/. */
+/** Google-issued credential, verified by the backend. */
 export interface GoogleDirectLoginData {
-  email: string;
-  google_id: string;
-  name?: string;
+  id_token: string;
 }
 
 /** UserProfileSerializer, and the nested `user` block on the login response. */
