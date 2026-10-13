@@ -28,6 +28,9 @@ export const login = (data: LoginData) =>
 export const googleDirectLogin = (data: GoogleDirectLoginData) =>
   publicApiClient.post<GoogleLoginResponse>(API_Routes.googleDirectLogin, data);
 
+export const linkGoogleAccount = (data: GoogleDirectLoginData & { current_password: string }) =>
+  apiClient.post('/api/accounts/google/link/', data);
+
 export const getUserProfile = () =>
   apiClient.get<UserProfile>(API_Routes.userProfile);
 

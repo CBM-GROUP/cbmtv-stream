@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { SafeImage } from "@/components/SafeImage";
+import { SaveButton } from "@/components/SaveButton";
 
 interface ProgramCardProps {
+  id: number;
   title: string;
   /** Content.thumbnail is nullable; SafeImage falls back to the placeholder. */
   src: string | null;
@@ -10,7 +12,7 @@ interface ProgramCardProps {
   href: string;
 }
 
-export const ProgramCard = ({ title, src, alt, href }: ProgramCardProps) => {
+export const ProgramCard = ({ id, title, src, alt, href }: ProgramCardProps) => {
   return (
     <div className="w-full aspect-3/4 rounded-lg border-4 hover:scale-105 duration-300 border-white/7 hover:border-chart-4 overflow-hidden z-0 relative">
       <Link href={href || ""}>
@@ -26,6 +28,7 @@ export const ProgramCard = ({ title, src, alt, href }: ProgramCardProps) => {
           {title}
         </h1>
       </Link>
+      <SaveButton contentId={id} title={title} className="absolute right-2 top-2 z-10" />
     </div>
   );
 };

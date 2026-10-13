@@ -5,13 +5,21 @@ import { useForm, Controller } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { getUserProfile } from "@/services/accounts";
 import apiClient from "@/services/api";
 import axios from "axios";
 import { BiLoader, BiUpload } from "react-icons/bi";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { redirect } from "next/navigation";
+
+type ProfileFields = {
+  name: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  country?: string;
+  profile_picture?: string;
+};
 
 const ProfileEditForm = () => {
   const { user, updateUser } = useAuth();
@@ -28,7 +36,7 @@ const ProfileEditForm = () => {
     setValue,
     reset,
     formState: { dirtyFields },
-  } = useForm();
+  } = useForm<ProfileFields>();
 
   useEffect(() => {
     if (user) {
@@ -36,10 +44,10 @@ const ProfileEditForm = () => {
       reset({
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        location: user.location,
-        country: user.country,
-        profile_picture: user.image,
+        phone: user.phone ?? "",
+        location: user.location ?? "",
+        country: user.country ?? "",
+        profile_picture: user.image ?? "",
       });
       setIsLoading(false);
     } else {
@@ -81,7 +89,7 @@ const ProfileEditForm = () => {
     }
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: ProfileFields) => {
     if (!user || !user.id) {
       console.error("User not found or user ID is missing.");
       setStatus({
@@ -91,11 +99,9 @@ const ProfileEditForm = () => {
       return;
     }
 
-    const changedFields: { [key: string]: any } = {};
-
-    for (const key in dirtyFields) {
-      changedFields[key] = data[key];
-    }
+    const changedFields = Object.fromEntries(
+      (Object.keys(dirtyFields) as (keyof ProfileFields)[]).map((key) => [key, data[key]]),
+    ) as Partial<ProfileFields>;
 
     if (Object.keys(changedFields).length > 0) {
   

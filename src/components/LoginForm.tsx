@@ -1,16 +1,16 @@
 "use client";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { GoogleLogin } from '@react-oauth/google';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
+import axios from 'axios';
 import apiClient from "@/services/api";
-import { registerUser } from "@/services/accounts";
+import { googleDirectLogin, linkGoogleAccount, registerUser } from "@/services/accounts";
 import { describeApiError } from "@/lib/api-errors";
 
 
@@ -26,6 +26,7 @@ export const LoginForm = () => {
   const { login } = useAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [googleTokenToLink, setGoogleTokenToLink] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +38,20 @@ export const LoginForm = () => {
       try {
         const response = await apiClient.post("/api/accounts/login/", { email, password });
         if (response.data) {
-          console.log("Login response data:", response.data);
           const user = response.data.user;
           const access_token = response.data.access;
           const refresh_token = response.data.refresh;
           login(user, access_token, refresh_token);
+          if (googleTokenToLink) {
+            try {
+              await linkGoogleAccount({ id_token: googleTokenToLink, current_password: password });
+              setGoogleTokenToLink(null);
+            } catch (linkError) {
+              setGoogleTokenToLink(null);
+              setError(describeApiError(linkError, "Signed in, but Google linking failed. Please try again."));
+              return;
+            }
+          }
           router.push('/'); // Redirect to home page
         }
       } catch (err) {
@@ -53,25 +63,12 @@ export const LoginForm = () => {
     }
   };
 
-  async function fetchGoogleUserInfo(accessToken: any) {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-    if (!res.ok) throw new Error('Failed to fetch user info');
-    const data = await res.json();
-    return data;
-  }
-
-  const handleGoogleLogin = async (decodedData: any) => {
+  const handleGoogleLogin = async (idToken: string) => {
+    setError(null);
     try {
-      const response = await apiClient.post("/api/accounts/login/google/direct/", {
-        name: decodedData.name,
-        email: decodedData.email,
-        google_id: decodedData.sub
-      });
+      const response = await googleDirectLogin({ id_token: idToken });
       if (response.data) {
         const user = response.data.user;
         const access_token = response.data.access;
@@ -81,8 +78,12 @@ export const LoginForm = () => {
         router.push('/'); // Redirect to home page
       }
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setGoogleTokenToLink(idToken);
+        setError("This email already has an account. Sign in with its password to link Google.");
+        return;
+      }
       setError(describeApiError(err, "Google login failed. Please try again."));
-      console.error("Google login failed", err);
     }
   }
 
@@ -158,19 +159,18 @@ export const LoginForm = () => {
       >
         Sign In
       </Button>
-      <GoogleOAuthProvider clientId="72436171717-kfa8bjgv5tputt0ddecl7hfdguj4d2k1.apps.googleusercontent.com">
+      {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
         <GoogleLogin
           onSuccess={credentialResponse => {
             if (!credentialResponse?.credential) return;
-            const decodedData = jwtDecode(credentialResponse?.credential);
-            handleGoogleLogin(decodedData);
+            handleGoogleLogin(credentialResponse.credential);
           }}
           onError={() => {
 
           }}
           useOneTap
         />
-      </GoogleOAuthProvider>
+      </GoogleOAuthProvider>}
       <div className="mt-4 text-center text-sm">
         <Sheet>
           <SheetTrigger asChild>
@@ -307,19 +307,18 @@ export const LoginForm = () => {
               >
                 Sign Up
               </Button>
-              <GoogleOAuthProvider clientId="72436171717-kfa8bjgv5tputt0ddecl7hfdguj4d2k1.apps.googleusercontent.com">
+              {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
                 <GoogleLogin
                   onSuccess={credentialResponse => {
                     if (!credentialResponse?.credential) return;
-                    const decodedData = jwtDecode(credentialResponse?.credential);
-                    handleGoogleLogin(decodedData);
+                    handleGoogleLogin(credentialResponse.credential);
                   }}
                   onError={() => {
 
                   }}
                   useOneTap
                 />
-              </GoogleOAuthProvider>
+              </GoogleOAuthProvider>}
 
             </form>
           </SheetContent>
