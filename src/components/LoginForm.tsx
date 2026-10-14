@@ -162,11 +162,14 @@ export const LoginForm = () => {
       {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
         <GoogleLogin
           onSuccess={credentialResponse => {
-            if (!credentialResponse?.credential) return;
+            if (!credentialResponse?.credential) {
+              setError("Google did not return a sign-in credential. Please try again.");
+              return;
+            }
             handleGoogleLogin(credentialResponse.credential);
           }}
           onError={() => {
-
+            setError("Google sign-in could not be completed. Please try again.");
           }}
           useOneTap
         />
@@ -310,11 +313,14 @@ export const LoginForm = () => {
               {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
                 <GoogleLogin
                   onSuccess={credentialResponse => {
-                    if (!credentialResponse?.credential) return;
+                    if (!credentialResponse?.credential) {
+                      setError("Google did not return a sign-in credential. Please try again.");
+                      return;
+                    }
                     handleGoogleLogin(credentialResponse.credential);
                   }}
                   onError={() => {
-
+                    setError("Google sign-in could not be completed. Please try again.");
                   }}
                   useOneTap
                 />
