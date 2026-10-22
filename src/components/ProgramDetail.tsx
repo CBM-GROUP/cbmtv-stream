@@ -21,6 +21,7 @@ import { TrackedVideo, type PlaybackTarget } from "./TrackedVideo";
 import { TrackedYouTube } from "./TrackedYouTube";
 import { useLibrary } from "@/context/LibraryContext";
 import { progressPartKey } from "@/lib/library-playback";
+import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
 
 type Props = {
   program: Program;
@@ -96,19 +97,19 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
   const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
   const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
-  const [playbackEnded, setPlaybackEnded] = useState(false);
-  const [playbackSession, setPlaybackSession] = useState(0);
+  const [playback, dispatchPlayback] = useState(() => initialPlayback(program.trailer_link, program.streaming_link));
+  const playbackEnded = playback.phase === "ended";
+  const playbackType = playback.phase === "trailer" ? "ad" : "streaming";
+  const playbackSession = playback.session;
+  const currentVideoUrl = playback.url;
   const [resumeAt, setResumeAt] = useState(0);
   const autoResumeDone = useRef(false);
+  const openedProgram = useRef({ id: program.id, trailer: program.trailer_link, main: program.streaming_link });
   const { progress } = useLibrary();
   const savedProgress = progress.items.find((row) => row.content.id === program.id && !row.completed);
   // Content.trailer_link and .streaming_link are both nullable on the API.
-  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
-  const [playbackType, setPlayBackType] = useState<"streaming" | "ad" | null>(
-    "ad"
-  );
 
   // Use the same default on the server and first client render. Restore a
   // returning viewer's preference after mount to avoid a hydration mismatch.
@@ -141,7 +142,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
     setResumeUnavailable(false);
     setCurrentPart(null);
     setNextPart(null);
-    setPlaybackEnded(false);
     autoResumeDone.current = false;
 
     if (program.content_type === "series") {
@@ -242,14 +242,18 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
   }, []);
 
   useEffect(() => {
-    if (program.trailer_link) {
-      setCurrentVideoUrl(program.trailer_link);
-      setPlayBackType("ad");
-    } else {
-      setCurrentVideoUrl(program.streaming_link ?? null);
-      setPlayBackType("streaming");
-    }
-  }, [program]);
+    if (openedProgram.current.id === program.id &&
+        openedProgram.current.trailer === program.trailer_link &&
+        openedProgram.current.main === program.streaming_link) return;
+    openedProgram.current = { id: program.id, trailer: program.trailer_link, main: program.streaming_link };
+    dispatchPlayback((state) => playbackTransition(state, {
+      type: "open", trailer: program.trailer_link, main: program.streaming_link,
+    }));
+  }, [program.id, program.trailer_link, program.streaming_link]);
+
+  const startMain = useCallback(() => {
+    dispatchPlayback((state) => playbackTransition(state, { type: "trailerFinished", main: program.streaming_link }));
+  }, [program.streaming_link]);
 
   /*
    * Scroll the player into view when the viewer switches what is playing --
@@ -319,12 +323,9 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
     setResumeUnavailable(false);
     setCurrentPart(part);
     setResumeAt(startAt);
-    setCurrentVideoUrl(part.url);
-    setPlaybackSession((session) => session + 1);
-    setPlayBackType("streaming");
+    dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: part.url }));
     setNextPart(null);
     setSecondsLeft(30);
-    setPlaybackEnded(false);
   }, []);
 
   const resumePlayback = useCallback(() => {
@@ -338,11 +339,8 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
       setResumeUnavailable(false);
       setCurrentPart(null);
       setResumeAt(savedProgress.position_seconds);
-      setCurrentVideoUrl(program.streaming_link);
-      setPlaybackSession((session) => session + 1);
-      setPlayBackType("streaming");
+      dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
       setNextPart(null);
-      setPlaybackEnded(false);
     }
   }, [savedProgress, orderedParts, partsLoaded, playPart, program.streaming_link]);
 
@@ -359,14 +357,18 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
     : null;
 
   const handlePlaybackEnded = useCallback(() => {
-    setPlaybackEnded(true);
+    if (playbackType === "ad") {
+      startMain();
+      return;
+    }
+    dispatchPlayback((state) => playbackTransition(state, { type: "ended" }));
     if (playbackType !== "streaming" || !currentPart) return;
     const index = orderedParts.findIndex((part) => part.key === currentPart.key);
     if (index >= 0 && index + 1 < orderedParts.length) {
       setSecondsLeft(30);
       setNextPart(orderedParts[index + 1]);
     }
-  }, [playbackType, currentPart, orderedParts]);
+  }, [playbackType, currentPart, orderedParts, startMain]);
 
   useEffect(() => {
     if (!nextPart) return;
@@ -388,15 +390,7 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
         <div className="player-frame">
           {playbackType === "ad" && (
             <button
-              onClick={() => {
-                setCurrentVideoUrl(program.streaming_link ?? null);
-                setPlaybackSession((session) => session + 1);
-                setPlayBackType("streaming");
-                setCurrentPart(null);
-                setResumeAt(0);
-                setPlaybackEnded(false);
-                setNextPart(null);
-              }}
+              onClick={startMain}
               className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
             >
               Skip
@@ -409,13 +403,17 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
             <TrackedVideo
               key={`${currentVideoUrl}:${playbackSession}`}
               src={currentVideoUrl as string}
-              poster={program.thumbnail || undefined}
               target={playbackTarget}
               onEnded={handlePlaybackEnded}
               onPlay={() => {
-                if (!nextPart) setPlaybackEnded(false);
+                if (!nextPart) dispatchPlayback((state) => playbackTransition(state, { type: "playing" }));
               }}
             />
+          )}
+          {!urlType && (
+            <div className="flex h-full items-center justify-center px-4 text-center text-sm text-white/70" role="status">
+              {currentVideoUrl ? "This video link is unsupported." : "Video is unavailable."}
+            </div>
           )}
 
           {nextPart && (
@@ -501,13 +499,10 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
         <div className="mt-6 grid grid-cols-2 gap-3">
           <Button
             onClick={() => {
-              setCurrentVideoUrl(program.streaming_link ?? null);
-              setPlaybackSession((session) => session + 1);
-              setPlayBackType("streaming");
+              dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
               setCurrentPart(null);
               setResumeAt(0);
               setNextPart(null);
-              setPlaybackEnded(false);
             }}
             disabled={!program.streaming_link || (currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
             className="h-11 w-full rounded-lg bg-gradient-to-tr from-chart-4/60 to-chart-5/60 text-black uppercase cursor-pointer"
