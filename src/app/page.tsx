@@ -2,22 +2,19 @@
 
 import ChannelCarousel from "@/components/ChannelCarousel";
 import { HomeHero } from "@/components/HomeHero";
-import Preloader from "@/components/Preloader";
 import { ProgramGrid } from "@/components/ProgramGrid";
 import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
 import type { Channel, ChannelCardItem, ProgramCardItem } from "@/types";
 import { useContent } from "@/hooks/useContent";
-import { useMovies } from "@/hooks/useMovies";
 import { useHeroSettings } from "@/hooks/useHeroSettings";
 import { Program } from "@/types";
 import { useMemo } from "react";
 
 export default function HomePage() {
-  const { isLoading: moviesLoading } = useMovies();
-  const { data: channelsData, isLoading: channelsLoading } = useChannels();
-  const { data: content, isLoading: contentLoading } = useContent();
-  const { data: adverts, isLoading: advertsLoading } = useAds();
+  const { data: channelsData } = useChannels();
+  const { data: content } = useContent();
+  const { data: adverts } = useAds();
   const { data: heroSettings } = useHeroSettings();
 
   // listAds now normalizes to Advert[]; it used to hand back the raw axios
@@ -60,10 +57,6 @@ export default function HomePage() {
         }),
       );
   }, [channelsData]);
-
-  if (moviesLoading || channelsLoading || contentLoading || advertsLoading) {
-    return <Preloader />;
-  }
 
   return (
     <>
