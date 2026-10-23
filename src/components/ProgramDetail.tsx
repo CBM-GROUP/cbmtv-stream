@@ -387,6 +387,7 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
         ref={videoPlayerRef}
         className="player-band group relative min-w-0 w-full bg-black"
       >
+        <SaveButton contentId={program.id} title={program.title} showLabel className="absolute left-3 top-3 z-20" />
         <div className="player-frame">
           {playbackType === "ad" && (
             <button
@@ -491,7 +492,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
             <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
             <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
           </div>
-          <SaveButton contentId={program.id} title={program.title} className="relative shrink-0" />
         </div>
         <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
           {program.description}
