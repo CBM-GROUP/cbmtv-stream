@@ -1,13 +1,10 @@
 "use client";
-import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { Providers } from "@/components/Providers";
 import { AuthProvider } from "@/context/AuthContext";
-import { useState, useEffect } from "react";
-import Preloader from "@/components/Preloader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,16 +21,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <html lang="en">
       <head>
@@ -58,15 +45,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <Providers>
-            {loading ? (
-              <Preloader />
-            ) : (
-              <>
-                <NavBar />
-                <main>{children}</main>
-                <Footer />
-              </>
-            )}
+            <NavBar />
+            <main>{children}</main>
+            <Footer />
           </Providers>
         </AuthProvider>
       </body>

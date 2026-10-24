@@ -2,6 +2,11 @@ import { getContentById } from "@/services/content";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProgramDetail from "@/components/ProgramDetail";
+import { cache } from "react";
+
+// Axios does not receive Next's automatic fetch deduplication. Metadata and
+// the page both need this record, so share the request within one render.
+const getProgram = cache(getContentById);
 
 export async function generateMetadata({
   params,
@@ -13,7 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   try {
     const { id } = await params;
-    const program = await getContentById(id);
+    const program = await getProgram(id);
     return {
       title: `CBM TV | ${program.data.title}`,
       description: program.data.description,
@@ -35,7 +40,7 @@ export default async function ProgramDetailPage({
 }) {
   try {
     const awaitedParams = await params;
-    const program = await getContentById(awaitedParams.id);
+    const program = await getProgram(awaitedParams.id);
     const query = await searchParams;
 
     if (!program) {
