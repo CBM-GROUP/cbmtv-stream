@@ -466,7 +466,6 @@ export default function ProgramDetail({ program }: Props) {
               onClick={() => {
                 dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
                 setCurrentPart(null);
-                setResumeAt(0);
                 setNextPart(null);
               }}
               disabled={playbackType === "ad" && !playbackEnded}
@@ -474,9 +473,6 @@ export default function ProgramDetail({ program }: Props) {
             >
               Watch trailer
             </Button>
-          )}
-          {savedProgress && (
-            <Button onClick={resumePlayback} className="h-11 w-full rounded-lg border border-teal-400/50 bg-transparent text-teal-300 hover:bg-teal-400/10">Resume</Button>
           )}
           <Button
             onClick={handleShare}
