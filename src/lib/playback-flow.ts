@@ -8,11 +8,12 @@ export type PlaybackEvent =
   | { type: "open"; trailer: string | null; main: string | null }
   | { type: "trailerFinished"; main: string | null }
   | { type: "playMain"; url: string | null }
+  | { type: "playTrailer"; url: string }
   | { type: "ended" }
   | { type: "playing" };
 
 export function initialPlayback(trailer: string | null, main: string | null): PlaybackFlow {
-  return { phase: trailer ? "trailer" : "main", url: trailer || main, session: 0 };
+  return { phase: main || !trailer ? "main" : "trailer", url: main || trailer, session: 0 };
 }
 
 export function playbackTransition(state: PlaybackFlow, event: PlaybackEvent): PlaybackFlow {
@@ -26,6 +27,8 @@ export function playbackTransition(state: PlaybackFlow, event: PlaybackEvent): P
         : state;
     case "playMain":
       return { phase: "main", url: event.url, session: state.session + 1 };
+    case "playTrailer":
+      return { phase: "trailer", url: event.url, session: state.session + 1 };
     case "ended":
       return state.phase === "main" ? { ...state, phase: "ended" } : state;
     case "playing":
