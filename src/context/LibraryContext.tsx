@@ -3,20 +3,14 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { describeApiError } from "@/lib/api-errors";
-import { publicProgress, publicSaved, withProgress, withSaved, withoutSaved } from "@/lib/library-state";
-import { ProgressService, SavedService } from "@/services/library";
-import type { SavedItem, WatchProgress, WatchProgressInput } from "@/types";
+import { publicProgress, withProgress } from "@/lib/library-state";
+import { ProgressService } from "@/services/library";
+import type { WatchProgress, WatchProgressInput } from "@/types";
 
 type LibraryState<T> = { items: T[]; loading: boolean; loaded: boolean; error: string | null };
-type SaveResult = "saved" | "removed" | "auth-required" | "failed";
-
 type LibraryContextValue = {
-  saved: LibraryState<SavedItem>;
   progress: LibraryState<WatchProgress>;
-  savedIds: Set<number>;
-  pending: Set<number>;
   actionError: string | null;
-  toggleSaved: (contentId: number) => Promise<SaveResult>;
   saveProgress: (input: WatchProgressInput) => Promise<void>;
   removeProgress: (contentId: number) => Promise<void>;
   reload: () => void;
@@ -33,9 +27,7 @@ export function useLibrary() {
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const [saved, setSaved] = useState<LibraryState<SavedItem>>(empty);
   const [progress, setProgress] = useState<LibraryState<WatchProgress>>(empty);
-  const [pending, setPending] = useState<Set<number>>(new Set());
   const [stateAccount, setStateAccount] = useState<number | null>(null);
   const stateAccountRef = useRef<number | null>(null);
   stateAccountRef.current = stateAccount;
@@ -50,22 +42,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
     let active = true;
-    setSaved(empty());
     setProgress(empty());
-    setPending(new Set());
     setStateAccount(accountId);
     setActionError(null);
     progressTouched.current = new Set();
     progressWrites.current = new Map();
     if (accountId === null) return;
 
-    setSaved({ items: [], loading: true, loaded: false, error: null });
     setProgress({ items: [], loading: true, loaded: false, error: null });
-    void SavedService.list().then((items) => {
-      if (active) setSaved({ items: publicSaved(items), loading: false, loaded: true, error: null });
-    }).catch((error) => {
-      if (active) setSaved({ items: [], loading: false, loaded: true, error: describeApiError(error, "Could not load saved titles.") });
-    });
     void ProgressService.list().then((items) => {
       if (active) setProgress((current) => ({
         items: [
@@ -80,38 +64,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, [authLoading, accountId, reloadKey]);
 
-  const visibleSaved = stateAccount === accountId ? saved : empty<SavedItem>();
   const visibleProgress = stateAccount === accountId ? progress : empty<WatchProgress>();
-  const visiblePending = stateAccount === accountId ? pending : new Set<number>();
-  const savedIds = new Set(visibleSaved.items.map((item) => item.content.id));
-  const toggleSaved = async (contentId: number): Promise<SaveResult> => {
-    if (!user) return "auth-required";
-    if (stateAccount !== user.id || !saved.loaded || saved.loading || pending.has(contentId)) return "failed";
-    const accountId = user.id;
-    const wasSaved = savedIds.has(contentId);
-    setPending((current) => new Set(current).add(contentId));
-    setActionError(null);
-    try {
-      if (wasSaved) {
-        await SavedService.remove(contentId);
-        if (accountRef.current === accountId) setSaved((current) => ({ ...current, items: withoutSaved(current.items, contentId) }));
-      } else {
-        const item = await SavedService.add(contentId);
-        if (accountRef.current === accountId) setSaved((current) => ({ ...current, items: withSaved(current.items, item) }));
-      }
-      return wasSaved ? "removed" : "saved";
-    } catch (error) {
-      if (accountRef.current === accountId) setActionError(describeApiError(error, "Could not update saved titles."));
-      return "failed";
-    } finally {
-      if (accountRef.current === accountId) setPending((current) => {
-        const next = new Set(current);
-        next.delete(contentId);
-        return next;
-      });
-    }
-  };
-
   const saveProgress = async (input: WatchProgressInput) => {
     if (!user || input.position_seconds < 5) return;
     const accountId = user.id;
@@ -149,5 +102,5 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return <LibraryContext.Provider value={{ saved: visibleSaved, progress: visibleProgress, savedIds, pending: visiblePending, actionError: stateAccount === accountId ? actionError : null, toggleSaved, saveProgress, removeProgress, reload: () => setReloadKey((value) => value + 1) }}>{children}</LibraryContext.Provider>;
+  return <LibraryContext.Provider value={{ progress: visibleProgress, actionError: stateAccount === accountId ? actionError : null, saveProgress, removeProgress, reload: () => setReloadKey((value) => value + 1) }}>{children}</LibraryContext.Provider>;
 }
