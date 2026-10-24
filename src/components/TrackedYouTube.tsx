@@ -1,16 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useLibrary } from "@/context/LibraryContext";
-import { useAuth } from "@/context/AuthContext";
-import { checkpoint, shouldSaveCheckpoint } from "@/lib/library-playback";
-import { saveProgressOnExit } from "@/services/library";
-import type { PlaybackTarget } from "./TrackedVideo";
 
 type YouTubePlayer = {
-  getCurrentTime: () => number;
-  getDuration: () => number;
-  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   playVideo: () => void;
   destroy: () => void;
 };
@@ -41,46 +33,16 @@ function youtubeApi(): Promise<YouTubeApi> {
   return apiPromise;
 }
 
-export function TrackedYouTube({ videoId, target, onEnded }: { videoId: string; target: PlaybackTarget | null; onEnded: () => void }) {
+export function TrackedYouTube({ videoId, onEnded }: { videoId: string; onEnded: () => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const { saveProgress } = useLibrary();
-  const { user } = useAuth();
-  const saveRef = useRef(saveProgress);
   const endedRef = useRef(onEnded);
-  saveRef.current = saveProgress;
   endedRef.current = onEnded;
-  const contentId = target?.content;
-  const episodeId = target?.episode;
-  const miniseriesId = target?.miniseries;
-  const startAt = target?.startAt;
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    const save = saveRef.current;
-    const sessionToken = localStorage.getItem("access_token");
     let disposed = false;
     let player: YouTubePlayer | null = null;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    let lastSaved = -1;
-    let queue = Promise.resolve();
-    const sample = () => ({ position: player?.getCurrentTime() ?? 0, duration: player?.getDuration() ?? 0 });
-    const flush = (force = false, exiting = false, ended = false) => {
-      if (!contentId || !player) return;
-      const sampled = sample();
-      const position = ended && sampled.duration > 0 ? sampled.duration : sampled.position;
-      const duration = sampled.duration;
-      if (!shouldSaveCheckpoint(position, lastSaved, duration, force)) return;
-      lastSaved = position;
-      const data = checkpoint(contentId, position, duration, episodeId, miniseriesId);
-      if (exiting) saveProgressOnExit(data, sessionToken);
-      else queue = queue.then(() => save(data)).catch(() => {});
-    };
-    const stop = () => { if (timer) clearInterval(timer); timer = null; };
-    const onPageHide = () => flush(true, true);
-    const onVisibility = () => { if (document.visibilityState === "hidden") flush(true, true); };
-    window.addEventListener("pagehide", onPageHide);
-    document.addEventListener("visibilitychange", onVisibility);
 
     void youtubeApi().then((api) => {
       if (disposed || !mount) return;
@@ -89,18 +51,10 @@ export function TrackedYouTube({ videoId, target, onEnded }: { videoId: string; 
         playerVars: { autoplay: 1, controls: 1, playsinline: 1, origin: window.location.origin },
         events: {
           onReady: () => {
-            if (startAt) player?.seekTo(startAt, true);
             player?.playVideo();
           },
           onStateChange: ({ data }) => {
-            if (data === 1) {
-              stop();
-              timer = setInterval(() => flush(false), 1000);
-            } else if (data === 2 || data === 0) {
-              stop();
-              flush(true, false, data === 0);
-              if (data === 0) endedRef.current();
-            }
+            if (data === 0) endedRef.current();
           },
         },
       });
@@ -110,13 +64,9 @@ export function TrackedYouTube({ videoId, target, onEnded }: { videoId: string; 
 
     return () => {
       disposed = true;
-      stop();
-      window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("visibilitychange", onVisibility);
-      flush(true);
       player?.destroy();
     };
-  }, [videoId, contentId, episodeId, miniseriesId, startAt, user?.id]);
+  }, [videoId]);
 
   return <div className="h-full w-full" ref={mountRef} aria-label="YouTube video player"><a className="text-teal-400" href={`https://www.youtube.com/watch?v=${videoId}`}>Open video on YouTube</a></div>;
 }

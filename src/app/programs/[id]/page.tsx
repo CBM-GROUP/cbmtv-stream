@@ -33,21 +33,18 @@ export async function generateMetadata({
 
 export default async function ProgramDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ resume?: string }>;
 }) {
   try {
     const awaitedParams = await params;
     const program = await getProgram(awaitedParams.id);
-    const query = await searchParams;
 
     if (!program) {
       notFound();
     }
 
-    return <ProgramDetail program={program.data} resumeRequested={query.resume === "1"} />;
+    return <ProgramDetail program={program.data} />;
   } catch {
     notFound();
   }

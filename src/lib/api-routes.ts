@@ -80,12 +80,6 @@ export const API_Routes = {
   listSeries: "/api/content/?content_type=series",
   listMovies: "/api/content/movies/",
 
-  /* Account-scoped library, shared with the mobile app. */
-  listSaved: "/api/library/saved/",
-  savedIds: "/api/library/saved/ids/",
-  savedItem: "/api/library/saved/{{content_id}}/",
-  listProgress: "/api/library/progress/",
-  progressItem: "/api/library/progress/{{content_id}}/",
 } as const;
 
 export type ApiRoute = (typeof API_Routes)[keyof typeof API_Routes];
