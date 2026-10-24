@@ -28,7 +28,7 @@ export const NavBar = () => {
     { href: "/", label: "Stream Bird" },
     { href: "/channels", label: "Channel Box" },
     { href: "/programs", label: "Trends" },
-    { href: "/saved", label: "Saved" },
+    { href: "/continue-watching", label: "Continue Watching" },
   ];
 
   useEffect(() => {

@@ -16,7 +16,6 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
-import { SaveButton } from "./SaveButton";
 import { TrackedVideo, type PlaybackTarget } from "./TrackedVideo";
 import { TrackedYouTube } from "./TrackedYouTube";
 import { useLibrary } from "@/context/LibraryContext";
@@ -387,7 +386,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
         ref={videoPlayerRef}
         className="player-band group relative min-w-0 w-full bg-black"
       >
-        <SaveButton contentId={program.id} title={program.title} showLabel className="absolute left-3 top-3 z-20" />
         <div className="player-frame">
           {playbackType === "ad" && (
             <button
