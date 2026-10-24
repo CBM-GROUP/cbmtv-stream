@@ -12,9 +12,9 @@ import { Program } from "@/types";
 import { useMemo } from "react";
 
 export default function HomePage() {
-  const { data: channelsData } = useChannels();
-  const { data: content } = useContent();
-  const { data: adverts } = useAds();
+  const { data: channelsData, isLoading: channelsLoading } = useChannels();
+  const { data: content, isLoading: contentLoading } = useContent();
+  const { data: adverts, isLoading: advertsLoading } = useAds();
   const { data: heroSettings } = useHeroSettings();
 
   // listAds now normalizes to Advert[]; it used to hand back the raw axios
@@ -58,11 +58,15 @@ export default function HomePage() {
       );
   }, [channelsData]);
 
+  if (advertsLoading) {
+    return <Preloader />;
+  }
+
   return (
     <>
       <HomeHero slides={landerContent} imageDurationSeconds={heroSettings?.image_duration_seconds ?? 20} />
-      <ChannelCarousel channels={channels} />
-      <ProgramGrid programs={programs} filters={filters} />
+      {!channelsLoading && <ChannelCarousel channels={channels} />}
+      {!contentLoading && <ProgramGrid programs={programs} filters={filters} />}
     </>
   );
 }
