@@ -16,15 +16,12 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
-import { TrackedVideo, type PlaybackTarget } from "./TrackedVideo";
+import { TrackedVideo } from "./TrackedVideo";
 import { TrackedYouTube } from "./TrackedYouTube";
-import { useLibrary } from "@/context/LibraryContext";
-import { progressPartKey } from "@/lib/library-playback";
 import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
 
 type Props = {
   program: Program;
-  resumeRequested?: boolean;
 };
 
 type PlayerMode = "theater" | "standard";
@@ -87,12 +84,10 @@ function getYouTubeVideoId(url: string): string | null {
   }
 }
 
-export default function ProgramDetail({ program, resumeRequested = false }: Props) {
+export default function ProgramDetail({ program }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
   const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
-  const [partsLoaded, setPartsLoaded] = useState(false);
-  const [resumeUnavailable, setResumeUnavailable] = useState(false);
   const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
   const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
@@ -101,11 +96,7 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
   const playbackType = playback.phase === "trailer" ? "ad" : "streaming";
   const playbackSession = playback.session;
   const currentVideoUrl = playback.url;
-  const [resumeAt, setResumeAt] = useState(0);
-  const autoResumeDone = useRef(false);
   const openedProgram = useRef({ id: program.id, trailer: program.trailer_link, main: program.streaming_link });
-  const { progress } = useLibrary();
-  const savedProgress = progress.items.find((row) => row.content.id === program.id && !row.completed);
   // Content.trailer_link and .streaming_link are both nullable on the API.
   const [isCopied, setIsCopied] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
@@ -137,11 +128,8 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
     setSeasons([]);
     setEpisodesBySeason({});
     setMiniParts([]);
-    setPartsLoaded(program.content_type !== "series" && program.content_type !== "miniseries");
-    setResumeUnavailable(false);
     setCurrentPart(null);
     setNextPart(null);
-    autoResumeDone.current = false;
 
     if (program.content_type === "series") {
       void getSeriesSeasons(program.id)
@@ -157,19 +145,17 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
           }));
           if (!cancelled) {
             setEpisodesBySeason(Object.fromEntries(entries));
-            setPartsLoaded(true);
           }
         })
-        .catch((error) => { console.error("Failed to load series episodes", error); if (!cancelled) setPartsLoaded(true); });
+        .catch((error) => { console.error("Failed to load series episodes", error); });
     } else if (program.content_type === "miniseries") {
       void getMiniSeriesParts(program.id)
         .then((parts) => {
           if (!cancelled) {
             setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
-            setPartsLoaded(true);
           }
         })
-        .catch((error) => { console.error("Failed to load miniseries parts", error); if (!cancelled) setPartsLoaded(true); });
+        .catch((error) => { console.error("Failed to load miniseries parts", error); });
     }
     return () => { cancelled = true; };
   }, [program.id, program.content_type]);
@@ -318,42 +304,12 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
     return [];
   }, [program.content_type, seasons, episodesBySeason, miniParts]);
 
-  const playPart = useCallback((part: PlayablePart, startAt = 0) => {
-    setResumeUnavailable(false);
+  const playPart = useCallback((part: PlayablePart) => {
     setCurrentPart(part);
-    setResumeAt(startAt);
     dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: part.url }));
     setNextPart(null);
     setSecondsLeft(30);
   }, []);
-
-  const resumePlayback = useCallback(() => {
-    if (!savedProgress) return;
-    const key = progressPartKey(savedProgress);
-    if (key) {
-      const part = orderedParts.find((item) => item.key === key);
-      if (part) playPart(part, savedProgress.position_seconds);
-      else if (partsLoaded) setResumeUnavailable(true);
-    } else if (program.streaming_link) {
-      setResumeUnavailable(false);
-      setCurrentPart(null);
-      setResumeAt(savedProgress.position_seconds);
-      dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
-      setNextPart(null);
-    }
-  }, [savedProgress, orderedParts, partsLoaded, playPart, program.streaming_link]);
-
-  useEffect(() => {
-    if (!resumeRequested || autoResumeDone.current || !savedProgress) return;
-    const key = progressPartKey(savedProgress);
-    if (key && !orderedParts.some((part) => part.key === key) && !partsLoaded) return;
-    autoResumeDone.current = true;
-    resumePlayback();
-  }, [resumeRequested, savedProgress, orderedParts, partsLoaded, resumePlayback]);
-
-  const playbackTarget: PlaybackTarget | null = playbackType === "streaming" && currentVideoUrl
-    ? { content: program.id, episode: currentPart?.episode ?? null, miniseries: currentPart?.miniseries ?? null, startAt: resumeAt }
-    : null;
 
   const handlePlaybackEnded = useCallback(() => {
     if (playbackType === "ad") {
@@ -396,13 +352,12 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
             </button>
           )}
           {urlType === "youtube" && youtubeId && (
-            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} target={playbackTarget} onEnded={handlePlaybackEnded} />
+            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} />
           )}
           {urlType === "direct" && (
             <TrackedVideo
               key={`${currentVideoUrl}:${playbackSession}`}
               src={currentVideoUrl as string}
-              target={playbackTarget}
               onEnded={handlePlaybackEnded}
               onPlay={() => {
                 if (!nextPart) dispatchPlayback((state) => playbackTransition(state, { type: "playing" }));
@@ -499,7 +454,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
             onClick={() => {
               dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
               setCurrentPart(null);
-              setResumeAt(0);
               setNextPart(null);
             }}
             disabled={!program.streaming_link || (currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
@@ -507,9 +461,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
           >
             Watch now
           </Button>
-          {savedProgress && (
-            <Button onClick={resumePlayback} className="h-11 w-full rounded-lg border border-teal-400/50 bg-transparent text-teal-300 hover:bg-teal-400/10">Resume</Button>
-          )}
           <Button
             onClick={handleShare}
             className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
@@ -526,7 +477,6 @@ export default function ProgramDetail({ program, resumeRequested = false }: Prop
           <Link href="/" className="text-teal-400 underline">Back to home</Link>
         </div>
       )}
-      {resumeUnavailable && <p role="status" className="mx-auto mt-5 max-w-5xl px-6 text-amber-200">That saved episode or part is unavailable. Choose another from the list below.</p>}
       {/*
         Always rendered. This block used to be gated on
         `playbackType != "streaming"`, so pressing "Watch now" deleted the
