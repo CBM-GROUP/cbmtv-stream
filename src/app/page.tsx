@@ -8,13 +8,11 @@ import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
 import type { Channel, ChannelCardItem, ProgramCardItem } from "@/types";
 import { useContent } from "@/hooks/useContent";
-import { useMovies } from "@/hooks/useMovies";
 import { useHeroSettings } from "@/hooks/useHeroSettings";
 import { Program } from "@/types";
 import { useMemo } from "react";
 
 export default function HomePage() {
-  const { isLoading: moviesLoading } = useMovies();
   const { data: channelsData, isLoading: channelsLoading } = useChannels();
   const { data: content, isLoading: contentLoading } = useContent();
   const { data: adverts, isLoading: advertsLoading } = useAds();
@@ -61,15 +59,15 @@ export default function HomePage() {
       );
   }, [channelsData]);
 
-  if (moviesLoading || channelsLoading || contentLoading || advertsLoading) {
+  if (advertsLoading) {
     return <Preloader />;
   }
 
   return (
     <>
       <HomeHero slides={landerContent} imageDurationSeconds={heroSettings?.image_duration_seconds ?? 20} />
-      <ChannelCarousel channels={channels} />
-      <ProgramGrid programs={programs} filters={filters} />
+      {!channelsLoading && <ChannelCarousel channels={channels} />}
+      {!contentLoading && <ProgramGrid programs={programs} filters={filters} />}
     </>
   );
 }
