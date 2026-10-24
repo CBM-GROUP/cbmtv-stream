@@ -1,97 +1,104 @@
-"use client";
-
+import Image from "next/image";
+import Link from "next/link";
 import {
   Facebook,
   Instagram,
-  Youtube,
-  Twitter,
   MessageCircle,
   Music,
+  Twitter,
+  Youtube,
 } from "lucide-react";
-import Image from "next/image";
 
 export const Footer = () => {
   return (
-    <footer className="footer bg-white/5 text-[#fff] text-center py-16 space-y-14 px-10">
-      {/* Privacy Section */}
-      <div className="mx-auto flex-wrap justify-center text-center flex-col items-center space-y-2 sm:flex-row space-x-4 sm:space-x-5 sm:space-y-0 leading-loose font-light text-white/50">
-        <a className="hover:text-white whitespace-nowrap" href="#">
-          Privacy Policy
-        </a>
-        <a className="hover:text-white whitespace-nowrap" href="#">
-          Terms of Use
-        </a>
-        <a
-          className="hover:text-white"
-          href="https://cbmbrothers.org/"
-          target="_blank"
-          rel="noopener noreferrer"
+    <footer className="bg-white/5 px-4 py-8 text-center sm:py-10">
+      <div className="mx-auto flex max-w-4xl flex-col items-center gap-3">
+        <Link
+          href="/"
+          aria-label="CBM TV home"
+          className="relative block h-14 w-32 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
         >
-          Advertise
-        </a>
-        <a className="hover:text-white" href="#">
-          Contact Us
-        </a>
+          <Image
+            src="/images/cbm logo (1).png"
+            alt="CBM TV"
+            fill
+            sizes="128px"
+            className="object-cover"
+          />
+        </Link>
+
+        <nav
+          aria-label="Footer"
+          className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm leading-6 sm:text-base"
+        >
+          {/* These pages have no destinations yet; avoid linking them to '#'. */}
+          <span className="text-slate-300">Privacy Policy</span>
+          <span className="text-slate-300">Terms of Use</span>
+          <a
+            href="https://cbmbrothers.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded text-sky-300 transition-colors hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          >
+            Advertise
+          </a>
+          <span className="text-slate-300">Contact Us</span>
+          <span className="text-slate-300">Help</span>
+        </nav>
+
+        <nav
+          aria-label="Social media"
+          className="flex flex-wrap items-center justify-center gap-4 text-slate-300"
+        >
+          <a
+            href="https://www.facebook.com/cbmbrotherscbm"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+            className="rounded transition-colors hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          >
+            <Facebook size={22} aria-hidden="true" />
+          </a>
+          <a
+            href="https://x.com/CBMBrothers"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Twitter"
+            className="rounded transition-colors hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          >
+            <Twitter size={22} aria-hidden="true" />
+          </a>
+          <a
+            href="https://www.instagram.com/cbmbrothers/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+            className="rounded transition-colors hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          >
+            <Instagram size={22} aria-hidden="true" />
+          </a>
+          <a
+            href="https://www.youtube.com/@CBMTVUG"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="YouTube"
+            className="rounded transition-colors hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          >
+            <Youtube size={22} aria-hidden="true" />
+          </a>
+          <span role="img" aria-label="WhatsApp" className="text-slate-400">
+            <MessageCircle size={22} aria-hidden="true" />
+          </span>
+          <span role="img" aria-label="TikTok" className="text-slate-400">
+            <Music size={22} aria-hidden="true" />
+          </span>
+        </nav>
+
+        <p className="text-xs leading-5 text-slate-400 sm:text-sm">
+          Copyright &copy; {new Date().getFullYear()} CBM TV – A product of CBM
+          Group. All rights reserved.
+        </p>
       </div>
-
-      {/* Social Media */}
-
-      <div className="mx-auto flex items-center space-x-5 justify-center">
-        <a
-          href="https://www.facebook.com/cbmbrotherscbm"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Facebook"
-        >
-          <Facebook size={24} />
-        </a>
-        <a
-          href="https://x.com/CBMBrothers"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Twitter"
-        >
-          <Twitter size={24} />
-        </a>
-        <a
-          href="https://www.instagram.com/cbmbrothers/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Instagram"
-        >
-          <Instagram size={24} />
-        </a>
-        <a
-          href="https://www.youtube.com/@CBMTVUG"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="YouTube"
-        >
-          <Youtube size={24} />
-        </a>
-        <a href="#" aria-label="WhatsApp">
-          <MessageCircle size={24} />
-        </a>
-        <a href="#" aria-label="TikTok">
-          <Music size={24} />
-        </a>
-      </div>
-
-      {/* Logo */}
-      <div className="mx-auto flex items-center space-x-5 justify-center">
-        <Image
-          src="/images/cbm logo (1).png" // make sure this path is correct
-          alt="CBM TV Logo"
-          width={100}
-          height={40}
-        />
-      </div>
-
-      {/* CBM Brothers Product Text */}
-      <p className="text-[#ccc]/50">
-        Copyright &copy; {new Date().getFullYear()} CBM TV – A product of CBM
-        Group. All rights reserved.
-      </p>
     </footer>
   );
 };
