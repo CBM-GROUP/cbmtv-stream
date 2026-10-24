@@ -2,6 +2,7 @@
 
 import ChannelCarousel from "@/components/ChannelCarousel";
 import { HomeHero } from "@/components/HomeHero";
+import Preloader from "@/components/Preloader";
 import { ProgramGrid } from "@/components/ProgramGrid";
 import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
