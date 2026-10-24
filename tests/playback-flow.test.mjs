@@ -10,11 +10,21 @@ test("movie without a trailer is selected immediately", () => {
   assert.deepEqual(initialPlayback(null, movie), { phase: "main", url: movie, session: 0 });
 });
 
-test("trailer completion and Skip both start the movie once", () => {
+test("movie starts before its optional trailer", () => {
+  assert.deepEqual(initialPlayback(trailer, movie), { phase: "main", url: movie, session: 0 });
+});
+
+test("trailer can be selected and its completion returns to the movie once", () => {
   const opened = initialPlayback(trailer, movie);
-  const main = playbackTransition(opened, { type: "trailerFinished", main: movie });
-  assert.deepEqual(main, { phase: "main", url: movie, session: 1 });
+  const preview = playbackTransition(opened, { type: "playTrailer", url: trailer });
+  assert.deepEqual(preview, { phase: "trailer", url: trailer, session: 1 });
+  const main = playbackTransition(preview, { type: "trailerFinished", main: movie });
+  assert.deepEqual(main, { phase: "main", url: movie, session: 2 });
   assert.equal(playbackTransition(main, { type: "trailerFinished", main: movie }), main);
+});
+
+test("trailer remains playable when no main video exists", () => {
+  assert.deepEqual(initialPlayback(trailer, null), { phase: "trailer", url: trailer, session: 0 });
 });
 
 test("movie completion does not replay the trailer", () => {

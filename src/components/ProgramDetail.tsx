@@ -242,7 +242,7 @@ export default function ProgramDetail({ program }: Props) {
 
   /*
    * Scroll the player into view when the viewer switches what is playing --
-   * picking an episode, skipping the trailer, hitting "Watch now".
+   * picking an episode, switching to the trailer, hitting "Watch now".
    *
    * Not on the first pass, though. This effect also ran on mount, which yanked
    * a freshly opened page downward before the reader had done anything; the
@@ -343,7 +343,7 @@ export default function ProgramDetail({ program }: Props) {
         className="player-band group relative min-w-0 w-full bg-black"
       >
         <div className="player-frame">
-          {playbackType === "ad" && (
+          {playbackType === "ad" && Boolean(program.streaming_link) && (
             <button
               onClick={startMain}
               className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
@@ -461,6 +461,23 @@ export default function ProgramDetail({ program }: Props) {
           >
             Watch now
           </Button>
+          {program.trailer_link && (
+            <Button
+              onClick={() => {
+                dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
+                setCurrentPart(null);
+                setResumeAt(0);
+                setNextPart(null);
+              }}
+              disabled={playbackType === "ad" && !playbackEnded}
+              className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
+            >
+              Watch trailer
+            </Button>
+          )}
+          {savedProgress && (
+            <Button onClick={resumePlayback} className="h-11 w-full rounded-lg border border-teal-400/50 bg-transparent text-teal-300 hover:bg-teal-400/10">Resume</Button>
+          )}
           <Button
             onClick={handleShare}
             className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
