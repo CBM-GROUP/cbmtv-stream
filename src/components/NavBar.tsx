@@ -11,10 +11,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { SearchSheet } from "./SearchSheet";
 
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/programs?category=movie", label: "Movies" },
-  { href: "/programs?category=series", label: "Series" },
-  { href: "/channels", label: "Channels" },
+  { href: "/", label: "Stream Bird" },
+  { href: "/channels", label: "Channel Box" },
+  { href: "/programs", label: "Trends" },
 ];
 
 export const NavBar = () => {
