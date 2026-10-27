@@ -3,15 +3,13 @@ import Link from "next/link";
 import {
   Facebook,
   Instagram,
-  MessageCircle,
-  Music,
   Twitter,
   Youtube,
 } from "lucide-react";
 
 export const Footer = () => {
   return (
-    <footer className="bg-white/5 px-4 py-8 text-center sm:py-10">
+    <footer className="bg-black/30 px-4 py-6 text-center sm:py-8">
       <div className="mx-auto flex max-w-4xl flex-col items-center gap-3">
         <Link
           href="/"
@@ -23,7 +21,7 @@ export const Footer = () => {
             alt="CBM TV"
             fill
             sizes="128px"
-            className="object-cover"
+            className="object-contain"
           />
         </Link>
 
@@ -31,9 +29,8 @@ export const Footer = () => {
           aria-label="Footer"
           className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm leading-6 sm:text-base"
         >
-          {/* These pages have no destinations yet; avoid linking them to '#'. */}
-          <span className="text-slate-300">Privacy Policy</span>
-          <span className="text-slate-300">Terms of Use</span>
+          <Link href="/programs" className="text-slate-300 hover:text-teal-300">Browse</Link>
+          <Link href="/channels" className="text-slate-300 hover:text-teal-300">Channels</Link>
           <a
             href="https://cbmbrothers.org/"
             target="_blank"
@@ -42,8 +39,6 @@ export const Footer = () => {
           >
             Advertise
           </a>
-          <span className="text-slate-300">Contact Us</span>
-          <span className="text-slate-300">Help</span>
         </nav>
 
         <nav
@@ -86,12 +81,6 @@ export const Footer = () => {
           >
             <Youtube size={22} aria-hidden="true" />
           </a>
-          <span role="img" aria-label="WhatsApp" className="text-slate-400">
-            <MessageCircle size={22} aria-hidden="true" />
-          </span>
-          <span role="img" aria-label="TikTok" className="text-slate-400">
-            <Music size={22} aria-hidden="true" />
-          </span>
         </nav>
 
         <p className="text-xs leading-5 text-slate-400 sm:text-sm">

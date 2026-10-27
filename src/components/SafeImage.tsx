@@ -44,6 +44,7 @@ export function SafeImage({
   src,
   fallbackSrc = PLACEHOLDER_IMAGE,
   alt,
+  unoptimized,
   ...rest
 }: SafeImageProps) {
   const [failed, setFailed] = useState(false);
@@ -60,7 +61,7 @@ export function SafeImage({
       {...rest}
       alt={alt}
       src={resolved}
-      unoptimized={!isLocal}
+      unoptimized={Boolean(unoptimized) || !isLocal}
       onError={() => setFailed(true)}
     />
   );

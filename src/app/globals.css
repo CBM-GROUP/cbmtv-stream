@@ -161,16 +161,18 @@ body {
  * ---------------------------------------------------------------------------
  * Layout tokens
  * ---------------------------------------------------------------------------
- * --header-h reflects the NavBar's two-row mobile layout. Other page elements
+ * --header-h reflects the compact navigation. Other page elements
  * can use it when they need to sit directly beneath the header.
  */
 :root {
-  --header-h: 152px;
+  --header-h: 64px;
+  --page-gutter: clamp(1rem, 4vw, 4rem);
+  --section-gap: clamp(1.5rem, 3vw, 2.75rem);
 }
 
 @media (min-width: 768px) {
   :root {
-    --header-h: 88px;
+    --header-h: 76px;
   }
 }
 
@@ -228,15 +230,50 @@ body {
 }
 
 .home-hero-slide {
-  height: calc(100vh - var(--header-h));
+  height: clamp(300px, 54svh, 460px);
   padding: 0;
 }
+.home-hero-slide.embla__slide { padding: 0; }
 
-@supports (height: 100dvh) {
+@media (min-width: 768px) {
   .home-hero-slide {
-    height: calc(100dvh - var(--header-h));
+    height: clamp(440px, 72svh, 760px);
   }
 }
+
+@media (max-height: 500px) and (max-width: 767px) {
+  .home-hero-slide { height: 280px; }
+}
+
+.site-header { position: sticky; top: 0; z-index: 40; height: var(--header-h); transition: background-color .2s; }
+.site-header-inner { height: 100%; display: flex; align-items: center; padding-inline: var(--page-gutter); }
+.site-header-overlay { background: linear-gradient(to bottom, rgba(0,0,0,.85), rgba(0,0,0,.05)); }
+.site-header-solid { background: rgba(15,15,15,.97); }
+/* Keep the homepage's geometry stable when the sticky header changes colour. */
+.site-header-home { margin-bottom: calc(-1 * var(--header-h)); }
+.header-icon, .rail-arrow { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; color: white; cursor: pointer; }
+.header-icon:hover, .rail-arrow:hover { background: rgba(255,255,255,.1); }
+.rail-arrow { width: 32px; height: 32px; }
+:where(a, button, input, [tabindex]):focus-visible { outline: 2px solid #5eead4; outline-offset: 4px; }
+.skip-link { position: fixed; top: -100px; left: 1rem; z-index: 60; padding: .75rem 1rem; background: #111; color: white; }
+.skip-link:focus { top: .5rem; }
+.search-sheet { max-height: 90dvh; overflow-y: auto; }
+.search-result-list { max-height: min(55dvh, 420px); }
+.home-catalogue { padding-block: 1.25rem var(--section-gap); }
+.content-section { padding-inline: var(--page-gutter); margin-bottom: var(--section-gap); min-width: 0; }
+.content-rail { display: flex; gap: .75rem; padding: 4px 4px 8px; margin-inline: -4px; scroll-snap-type: x proximity; }
+.rail-card { flex: 0 0 42%; min-width: 0; scroll-snap-align: start; }
+.hero-copy { position: absolute; z-index: 10; bottom: 3.5rem; left: var(--page-gutter); right: var(--page-gutter); max-width: 38rem; padding-top: var(--header-h); color: white; }
+.hero-title { margin-top: .5rem; font-size: clamp(1.7rem, 4.5vw, 4.5rem); font-weight: 750; line-height: 1.06; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.primary-action { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 44px; padding: .65rem 1.25rem; border-radius: .35rem; background: #2dd4bf; color: #061b18; font-weight: 650; cursor: pointer; }
+.primary-action:hover { background: #5eead4; }
+.auth-label { display: grid; gap: .5rem; color: #404040; font-size: .875rem; }
+.auth-input { width: 100%; min-width: 0; height: 48px; border: 1px solid #b3b3b3; border-radius: .35rem; padding: .5rem .75rem; color: #111; background: white; }
+.detail-cover { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+.player-band { scroll-margin-top: calc(var(--header-h) + 1rem); }
+@media (min-width: 640px) { .rail-card { flex-basis: 23%; } .content-rail { gap: 1rem; } }
+@media (min-width: 1024px) { .rail-card { flex-basis: calc((100% - 5rem) / 6); } .hero-copy { bottom: 5rem; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .player-frame {
   width: 100%;

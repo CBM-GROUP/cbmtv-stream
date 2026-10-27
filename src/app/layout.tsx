@@ -46,7 +46,7 @@ export default function RootLayout({
         <AuthProvider>
           <Providers>
             <NavBar />
-            <main>{children}</main>
+            <main id="main-content">{children}</main>
             <Footer />
           </Providers>
         </AuthProvider>

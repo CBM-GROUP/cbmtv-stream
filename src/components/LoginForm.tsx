@@ -1,335 +1,73 @@
 "use client";
-import { useAuth } from "@/context/AuthContext";
+
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import React, { useRef, useState } from "react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
-import { GoogleLogin } from '@react-oauth/google';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import axios from 'axios';
-import apiClient from "@/services/api";
-import { googleDirectLogin, linkGoogleAccount, registerUser } from "@/services/accounts";
+import axios from "axios";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { useAuth } from "@/context/AuthContext";
+import { googleDirectLogin, linkGoogleAccount, login as loginUser, registerUser } from "@/services/accounts";
 import { describeApiError } from "@/lib/api-errors";
+import { safeReturnTo } from "@/lib/auth-return";
 
-
-export const LoginForm = () => {
-  const emailRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
-  const givenNameRef = useRef<HTMLInputElement>(null);
-  const surnameRef = useRef<HTMLInputElement>(null);
-  const phoneRef = useRef<HTMLInputElement>(null);
-  const signUpEmailRef = useRef<HTMLInputElement>(null);
-  const signUpPasswordRef = useRef<HTMLInputElement>(null);
-  const passwordConfirmRef = useRef<HTMLInputElement>(null);
+export const LoginForm = ({ returnTo = "/" }: { returnTo?: string }) => {
   const { login } = useAuth();
   const router = useRouter();
+  const [register, setRegister] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [googleTokenToLink, setGoogleTokenToLink] = useState<string | null>(null);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const email = emailRef.current?.value;
-    const password = passwordRef.current?.value;
-
-    if (email && password) {
-      try {
-        const response = await apiClient.post("/api/accounts/login/", { email, password });
-        if (response.data) {
-          const user = response.data.user;
-          const access_token = response.data.access;
-          const refresh_token = response.data.refresh;
-          login(user, access_token, refresh_token);
-          if (googleTokenToLink) {
-            try {
-              await linkGoogleAccount({ id_token: googleTokenToLink, current_password: password });
-              setGoogleTokenToLink(null);
-            } catch (linkError) {
-              setGoogleTokenToLink(null);
-              setError(describeApiError(linkError, "Signed in, but Google linking failed. Please try again."));
-              return;
-            }
-          }
-          router.push('/'); // Redirect to home page
-        }
-      } catch (err) {
-        setError(describeApiError(err, "Login failed. Please check your credentials."));
-        console.error("Login failed", err);
-      }
-    } else {
-      setError("Please enter email and password.");
-    }
-  };
-
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-  const handleGoogleLogin = async (idToken: string) => {
-    setError(null);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    const fields = new FormData(event.currentTarget);
+    const email = String(fields.get("email") || "").trim();
+    const password = String(fields.get("password") || "");
+    if (register && password !== fields.get("confirm")) { setError("Passwords do not match."); return; }
+    setBusy(true); setError(null);
     try {
-      const response = await googleDirectLogin({ id_token: idToken });
-      if (response.data) {
-        const user = response.data.user;
-        const access_token = response.data.access;
-        const refresh_token = response.data.refresh;
-
-        login(user, access_token, refresh_token);
-        router.push('/'); // Redirect to home page
+      if (register) await registerUser({ name: String(fields.get("name") || "").trim(), email, password });
+      const { data } = await loginUser({ email, password });
+      login(data.user, data.access, data.refresh);
+      if (googleTokenToLink) {
+        try { await linkGoogleAccount({ id_token: googleTokenToLink, current_password: password }); }
+        catch (err) { setError(describeApiError(err, "Signed in, but Google linking failed. Please try again.")); return; }
+        finally { setGoogleTokenToLink(null); }
       }
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setGoogleTokenToLink(idToken);
-        setError("This email already has an account. Sign in with its password to link Google.");
-        return;
-      }
-      setError(describeApiError(err, "Google login failed. Please try again."));
-    }
-  }
-
-  const createUserAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const givenName = givenNameRef.current?.value;
-    const surname = surnameRef.current?.value;
-    const phone = phoneRef.current?.value;
-    const email = signUpEmailRef.current?.value;
-    const password = signUpPasswordRef.current?.value;
-    const passwordConfirm = passwordConfirmRef.current?.value;
-
-    if (password !== passwordConfirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    if (givenName && surname && phone && email && password) {
-      try {
-        await registerUser({
-          name: `${givenName} ${surname}`,
-          // The serializer field is `phone`. This used to send `phone_number`,
-          // which RegisterSerializer simply ignored, so the number was dropped
-          // on every sign-up.
-          phone: phone,
-          email: email,
-          password: password,
-        });
-        setError(null);
-        alert("Account created successfully! Please log in.");
-      } catch (err) {
-        // Surface the backend's field errors instead of collapsing every
-        // failure into one message. DRF replies with
-        // {"email": ["user with this email already exists."]}.
-        setError(describeApiError(err, "Account creation failed. Please try again."));
-        console.error("Account creation failed", err);
-      }
-    } else {
-      setError("Please fill all fields.");
-    }
+      router.replace(safeReturnTo(returnTo));
+    } catch (err) { setError(describeApiError(err, register ? "Could not create your account. If it was created, sign in to continue." : "Could not sign in. Check your email and password.")); }
+    finally { setBusy(false); }
   };
 
-  return (
-    <form onSubmit={handleLogin} className="w-full">
-      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-      <div className="grid gap-4 py-4">
-        <div className="flex-col flex space-y-2">
-          <Label htmlFor="email" className="text-right text-black/50">
-            Email
-          </Label>
-          <Input
-            ref={emailRef}
-            id="email"
-            type="email"
-            className="col-span-3 h-12 text-black border-black/20 shadow-none"
-          />
-        </div>
-        <div className="flex-col flex space-y-2">
-          <Label htmlFor="password" className="text-right text-black/50">
-            Password
-          </Label>
-          <Input
-            ref={passwordRef}
-            id="password"
-            type="password"
-            className="col-span-3 h-12 text-black border-black/20 shadow-none"
-          />
-        </div>
-      </div>
-      <Button
-        type="submit"
-        className="w-full h-14 hover:bg-chart-4 text-md hover:text-black cursor-pointer"
-      >
-        Sign In
-      </Button>
-      {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
-        <GoogleLogin
-          onSuccess={credentialResponse => {
-            if (!credentialResponse?.credential) {
-              setError("Google did not return a sign-in credential. Please try again.");
-              return;
-            }
-            handleGoogleLogin(credentialResponse.credential);
-          }}
-          onError={() => {
-            setError("Google sign-in could not be completed. Please try again.");
-          }}
-          useOneTap
-        />
-      </GoogleOAuthProvider>}
-      <div className="mt-4 text-center text-sm">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="link" className="text-black p-0 h-auto">
-              Don&apos;t have an account? Sign up
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side="top"
-            className="w-[calc(100%-20px)] sm:w-fit top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-fit p-5 pb-14 rounded-xl shadow-[0_0_0_100vw_rgba(0,0,0,0.6)] bg-white px-8 sm:px-14"
-          >
-            <SheetHeader className="px-0">
-              <SheetTitle className="text-black text-2xl">
-                Sign Up
-              </SheetTitle>
-              <SheetDescription>
-                Enter your credentials to create an account.
-              </SheetDescription>
-            </SheetHeader>
-            <form className="grid gap-4 py-4" onSubmit={createUserAccount}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex-col flex space-y-2">
-                  <Label
-                    htmlFor="given-name-mobile"
-                    className="text-black/50"
-                  >
-                    Given Name
-                  </Label>
-                  <Input
-                    ref={givenNameRef}
-                    id="given-name-mobile"
-                    placeholder="Given Name"
-                    required
-                    className="h-12 text-black border-black/20 shadow-none"
-                  />
-                </div>
-                <div className="flex-col flex space-y-2">
-                  <Label
-                    htmlFor="surname-mobile"
-                    className="text-black/50"
-                  >
-                    Surname
-                  </Label>
-                  <Input
-                    ref={surnameRef}
-                    id="surname-mobile"
-                    placeholder="Surname"
-                    required
-                    className="h-12 text-black border-black/20 shadow-none"
-                  />
-                </div>
-              </div>
+  const handleGoogleLogin = async (idToken: string) => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      const { data } = await googleDirectLogin({ id_token: idToken });
+      login(data.user, data.access, data.refresh);
+      router.replace(safeReturnTo(returnTo));
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setRegister(false); setGoogleTokenToLink(idToken);
+        setError("This email already has an account. Sign in with its password to link Google.");
+      } else setError(describeApiError(err, "Google sign-in could not be completed. Please try again."));
+    } finally { setBusy(false); }
+  };
 
-              <div className="flex-col flex space-y-2">
-                <Label
-                  htmlFor="tel-mobile"
-                  className="text-black/50"
-                >
-                  Mobile Phone Number
-                </Label>
-                <div className="flex items-center">
-                  <span className="inline-flex items-center px-3 h-12 rounded-l-md border border-r-0 border-black/20 bg-gray-50 text-gray-500 text-sm">
-                    🇺🇬 +256
-                  </span>
-                  <Input
-                    ref={phoneRef}
-                    id="tel-mobile"
-                    type="tel"
-                    placeholder="771 234567"
-                    required
-                    className="h-12 rounded-l-none text-black border-black/20 shadow-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex-col flex space-y-2">
-                <Label
-                  htmlFor="email-Sign Up-mobile"
-                  className="text-black/50"
-                >
-                  Email
-                </Label>
-                <Input
-                  ref={signUpEmailRef}
-                  id="email-Sign Up-mobile"
-                  type="email"
-                  placeholder="Email"
-                  required
-                  className="h-12 text-black border-black/20 shadow-none"
-                />
-              </div>
-
-              <div className="flex-col flex space-y-2">
-                <Label
-                  htmlFor="password-Sign Up-mobile"
-                  className="text-black/50"
-                >
-                  Password
-                </Label>
-                <Input
-                  ref={signUpPasswordRef}
-                  id="password-Sign Up-mobile"
-                  type="password"
-                  placeholder="Password"
-                  required
-                  className="h-12 text-black border-black/20 shadow-none"
-                />
-              </div>
-
-              <div className="flex-col flex space-y-2">
-                <Label
-                  htmlFor="password-confirm-mobile"
-                  className="text-black/50"
-                >
-                  Re-enter Your Password
-                </Label>
-                <Input
-                  ref={passwordConfirmRef}
-                  id="password-confirm-mobile"
-                  type="password"
-                  placeholder="Re-enter Your Password"
-                  required
-                  className="h-12 text-black border-black/20 shadow-none"
-                />
-              </div>
-              <p className="terms-text text-xs sm:col-span-2">
-                By creating an account, I agree to the{" "}
-                <a href="#">Terms and Conditions</a> and{" "}
-                <a href="#">Privacy Policy</a>.
-              </p>
-              <Button
-                type="submit"
-                className="w-full h-14 hover:bg-chart-4 text-md hover:text-black cursor-pointer sm:col-span-2"
-              >
-                Sign Up
-              </Button>
-              {googleClientId && <GoogleOAuthProvider clientId={googleClientId}>
-                <GoogleLogin
-                  onSuccess={credentialResponse => {
-                    if (!credentialResponse?.credential) {
-                      setError("Google did not return a sign-in credential. Please try again.");
-                      return;
-                    }
-                    handleGoogleLogin(credentialResponse.credential);
-                  }}
-                  onError={() => {
-                    setError("Google sign-in could not be completed. Please try again.");
-                  }}
-                  useOneTap
-                />
-              </GoogleOAuthProvider>}
-
-            </form>
-          </SheetContent>
-        </Sheet>
-      </div>
+  return <div>
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {register && <label className="auth-label">Full name<input name="name" autoComplete="name" required className="auth-input" /></label>}
+      <label className="auth-label">Email<input name="email" type="email" autoComplete="email" required className="auth-input" /></label>
+      <label className="auth-label">Password<input name="password" type="password" autoComplete={register ? "new-password" : "current-password"} required className="auth-input" /></label>
+      {register && <label className="auth-label">Confirm password<input name="confirm" type="password" autoComplete="new-password" required className="auth-input" /></label>}
+      <button type="submit" disabled={busy} className="primary-action w-full disabled:opacity-60">{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
     </form>
-  );
+    {googleClientId && <div className="mt-4 flex h-11 items-center justify-center overflow-hidden"><GoogleOAuthProvider clientId={googleClientId}><GoogleLogin onSuccess={(response) => {
+      if (response.credential) void handleGoogleLogin(response.credential);
+      else setError("Google did not return a sign-in credential. Please try again.");
+    }} onError={() => setError("Google sign-in could not be completed. Please try again.")} useOneTap /></GoogleOAuthProvider></div>}
+    <button type="button" disabled={busy} onClick={() => { setRegister(!register); setError(null); }} className="mt-3 min-h-11 w-full text-sm text-neutral-600 underline">{register ? "Already have an account? Sign in" : "New to CBM TV? Create an account"}</button>
+  </div>;
 };

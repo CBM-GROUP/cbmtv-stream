@@ -1,33 +1,24 @@
 import Link from "next/link";
+import { Play } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 
 interface ProgramCardProps {
   id: number;
   title: string;
-  /** Content.thumbnail is nullable; SafeImage falls back to the placeholder. */
   src: string | null;
   alt: string;
   slug: string;
   href: string;
 }
 
-export const ProgramCard = ({ title, src, alt, href }: ProgramCardProps) => {
-  return (
-    <div className="w-full aspect-3/4 rounded-lg border-4 hover:scale-105 duration-300 border-white/7 hover:border-chart-4 overflow-hidden z-0 relative">
-      <Link href={href || ""}>
-        <SafeImage
-          src={src}
-          alt={alt}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          priority={false}
-        />
-        <h1 className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white text-sm font-normal truncate text-center ">
-          {title}
-        </h1>
-      </Link>
+export const ProgramCard = ({ title, src, alt, href }: ProgramCardProps) => (
+  <Link href={href} className="program-card group block min-w-0 rounded-lg" aria-label={`View ${title}`}>
+    <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-white/5">
+      <SafeImage src={src} alt={alt} fill className="object-cover transition-transform duration-300 motion-safe:group-hover:scale-105" sizes="(max-width: 639px) 42vw, (max-width: 1023px) 23vw, 15vw" />
+      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 md:flex" aria-hidden="true">
+        <Play className="size-12 rounded-full bg-black/60 p-3 text-white" />
+      </span>
     </div>
-  );
-};
-
+    <p className="mt-2 line-clamp-2 min-h-10 text-sm font-medium leading-5 text-white/90">{title}</p>
+  </Link>
+);
