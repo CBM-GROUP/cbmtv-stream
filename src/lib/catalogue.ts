@@ -1,15 +1,15 @@
 import type { ContentType, Program } from "../types/index";
 
-// There is no separate TV Shows type. Originals keep their own name.
-export const CATEGORIES: { type: ContentType; title: string }[] = [
-  { type: "movie", title: "Movies" },
-  { type: "series", title: "Series" },
-  { type: "documentary", title: "Documentaries" },
-  { type: "animations", title: "Animations" },
-  { type: "miniseries", title: "Miniseries" },
-  { type: "original", title: "Originals" },
-  { type: "music", title: "Music Videos" },
+// The API calls TV Shows "original" and keeps miniseries as a separate type.
+export const CATEGORIES: { type: ContentType; title: string; types: ContentType[] }[] = [
+  { type: "original", title: "TV Shows", types: ["original"] },
+  { type: "movie", title: "Movies", types: ["movie"] },
+  { type: "series", title: "Series", types: ["series", "miniseries"] },
+  { type: "animations", title: "Animations", types: ["animations"] },
+  { type: "documentary", title: "Documentaries", types: ["documentary"] },
 ];
+
+export const BROWSE_CATEGORIES = [...CATEGORIES, { type: "music" as ContentType, title: "Music Videos", types: ["music" as ContentType] }];
 
 export function newestEligible(items: Program[]): Program[] {
   const unique = new Map<number, Program>();
@@ -25,8 +25,8 @@ export function newestEligible(items: Program[]): Program[] {
 export function selectNewReleases(items: Program[]): Program[] {
   const ordered = newestEligible(items);
   const usedChannels = new Set<number>();
-  return CATEGORIES.flatMap(({ type }) => {
-    const candidates = ordered.filter((item) => item.content_type === type);
+  return CATEGORIES.flatMap(({ types }) => {
+    const candidates = ordered.filter((item) => types.includes(item.content_type));
     const chosen = candidates.find((item) => !usedChannels.has(item.channel)) ?? candidates[0];
     if (!chosen) return [];
     usedChannels.add(chosen.channel);
