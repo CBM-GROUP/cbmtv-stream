@@ -1,217 +1,55 @@
 "use client";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { useAuth } from "@/context/AuthContext";
-import { SafeImage } from "@/components/SafeImage";
-import { Menu, Power } from "lucide-react";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect } from "react";
-import { LoginForm } from "./LoginForm";
-import { Searchbar } from "./Searchbar";
-import { Button } from "./ui/button";
+import { usePathname } from "next/navigation";
+import { Menu, LogOut, UserRound } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { SearchSheet } from "./SearchSheet";
+
+const links = [
+  { href: "/", label: "Home" },
+  { href: "/programs?category=movie", label: "Movies" },
+  { href: "/programs?category=series", label: "Series" },
+  { href: "/channels", label: "Channels" },
+];
 
 export const NavBar = () => {
   const { user, logout } = useAuth();
-  const links = [
-    { href: "/", label: "Stream Bird" },
-    { href: "/channels", label: "Channel Box" },
-    { href: "/programs", label: "Trends" },
-  ];
-
+  const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
-    // You can add any side effects related to user authentication heres
-  }, [user]);
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
 
-  return (
-    <section className="sticky top-0 bg-background z-50 py-4">
-      <header className="w-full px-4 sm:px-10 flex items-center justify-between">
-        <div className="flex items-center space-x-12">
-          <Link href="/">
-            <Image
-              src="/images/cbm logo (1).png"
-              width={500}
-              height={500}
-              className="h-14 w-32 object-cover object-center"
-              alt="CMB TV Logo"
-            />
-          </Link>
-          <nav className="hidden md:flex space-x-6 items-center text-sm">
-            {links.map((link, index) => (
-              <a key={index} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <div className="hidden sm:flex space-x-4 justify-end">
-            <Searchbar />
-
-            {user ? (
-              <Popover>
-                <PopoverTrigger>
-                  <div className="flex items-center space-x-2">
-                    {user.image ? (
-                      <SafeImage
-                        src={user.image}
-                        width={40}
-                        height={40}
-                        alt="User Avatar"
-                        className="rounded-lg cursor-pointer w-12 h-12 object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-cyan-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
-                        {user.name?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-48">
-                  <Link
-                    href="/profile/edit"
-                    className="rounded-lg h-12 py-6 w-full text-black capitalize flex items-center space-x-3 text-sm px-4"
-                  >
-                    <span>Profile</span>
-                  </Link>
-                  <button
-                    onClick={logout}
-                    className="rounded-lg h-12 py-6 w-full text-black capitalize flex items-center space-x-3 text-sm px-4"
-                  >
-                    <Power size={16} />
-                    <span>Logout</span>
-                  </button>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button className="rounded-lg bg-[#01BEA5] h-12 py-6 min-w-32 text-black capitalize">
-                    Sign in
-                  </Button>
-                </SheetTrigger>
-                <SheetContent
-                  side="top"
-                  className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-fit p-5 pb-14 rounded-xl shadow-[0_0_0_100vw_rgba(0,0,0,0.6)] bg-white px-8 sm:px-14 max-w-lg w-[calc(100%-20px)]"
-                >
-                  <SheetHeader className="px-0">
-                    <SheetTitle className="text-black text-2xl">
-                      Sign In
-                    </SheetTitle>
-                    <SheetDescription>
-                      Enter your credentials to access your account.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <LoginForm />
-                </SheetContent>
-              </Sheet>
-            )}
-          </div>
-
-          {/* Mobile Menu */}
-          <div className="md:hidden">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-6 w-6" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="border-none p-4 h-full ">
-                <SheetHeader>
-                  <SheetTitle>
-                    {/*<Image src="/images/CBM TV cyan Logo.png" width={200} height={200} className="h-10 w-auto" alt="CMB TV Logo" />*/}
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="py-4">
-                  <div className="mt-6 flex flex-col items-center space-y-4 h-full justify-between">
-                    {user && (
-                      <>
-                        <div className="flex flex-col items-center justify-center space-y-4">
-                          {user.image ? (
-                            <SafeImage
-                              src={user.image}
-                              width={40}
-                              height={40}
-                              alt="User Avatar"
-                              className="rounded-full cursor-pointer h-20 w-20 object-cover shrink-0 grow-0"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 rounded-full bg-cyan-600 overflow-hidden flex items-center justify-center text-white font-bold cursor-pointer">
-                              {user.name?.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="text-white">{user.name}</span>
-                        </div>
-                      </>
-                    )}
-
-                    <nav className="flex items-center text-center flex-col space-y-4">
-                      {links.map((link, index) => (
-                        <a key={index} href={link.href} className="text-lg">
-                          {link.label}
-                        </a>
-                      ))}
-                      {user && (
-                        <a
-                          href="/profile/edit"
-                          className="text-center text-lg"
-                        >
-                          Profile
-                        </a>
-                      )}
-                    </nav>
-                    {user ? (
-                      <Button
-                        onClick={logout}
-                        className="rounded-lg border border-white/20 h-12 py-6 w-full capitalize bg-transparent text-white"
-                      >
-                        Logout
-                      </Button>
-                    ) : (
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button className="rounded-lg border border-white/20 h-12 py-6 w-full capitalize bg-transparent text-white">
-                            Sign in
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent
-                          side="top"
-                          className="w-[calc(100%-20px)] sm:w-fit top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-fit p-5 pb-14 rounded-xl shadow-[0_0_0_100vw_rgba(0,0,0,0.6)] bg-white px-8 sm:px-14 max-w-lg"
-                        >
-                          <SheetHeader className="px-0">
-                            <SheetTitle className="text-black text-2xl">
-                              Sign In
-                            </SheetTitle>
-                            <SheetDescription>
-                              Enter your credentials to access your account.
-                            </SheetDescription>
-                          </SheetHeader>
-                          <LoginForm />
-                        </SheetContent>
-                      </Sheet>
-                    )}
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
-      </header>
-      <div className="px-4 mt-4 md:hidden">
-        <Searchbar />
+  return <header className={`site-header ${pathname === "/" ? "site-header-home" : ""} ${pathname === "/" && !scrolled ? "site-header-overlay" : "site-header-solid"}`}>
+    <a href="#main-content" className="skip-link">Skip to content</a>
+    <div className="site-header-inner">
+      <Link href="/" aria-label="CBM TV home" className="shrink-0 rounded"><Image src="/images/cbm logo (1).png" width={128} height={56} className="h-11 w-24 object-contain md:w-28" alt="CBM TV" priority /></Link>
+      <nav className="ml-7 hidden items-center gap-6 text-sm font-medium md:flex" aria-label="Main navigation">
+        {links.map((link) => <Link key={link.href} href={link.href} aria-current={link.href === pathname ? "page" : undefined} className="whitespace-nowrap text-white/80 hover:text-teal-300">{link.label}</Link>)}
+      </nav>
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <SearchSheet />
+        {user ? <Popover><PopoverTrigger className="header-icon" aria-label="Account menu"><UserRound size={21} /></PopoverTrigger>
+          <PopoverContent align="end" className="w-52 border-white/10 bg-neutral-900 text-white"><p className="truncate px-2 pb-3 text-sm text-white/60">{user.name}</p><Link href="/profile/edit" className="block rounded p-2 hover:bg-white/10">Profile</Link><button onClick={logout} className="flex w-full items-center gap-2 rounded p-2 text-left hover:bg-white/10"><LogOut size={16} />Sign out</button></PopoverContent>
+        </Popover> : <Link href="/sign-in" className="rounded-md bg-teal-400 px-3 py-2 text-sm font-semibold whitespace-nowrap text-black hover:bg-teal-300 sm:px-5">Sign in</Link>}
+        <div className="md:hidden"><Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetTrigger className="header-icon" aria-label="Open navigation"><Menu size={23} /></SheetTrigger>
+          <SheetContent side="right" className="border-none bg-neutral-950 p-5 text-white">
+            <SheetHeader className="px-0"><SheetTitle>CBM TV</SheetTitle><SheetDescription>Discover your next watch.</SheetDescription></SheetHeader>
+            <nav className="flex flex-col gap-2" aria-label="Mobile navigation">{links.map((link) => <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-md px-3 py-3 hover:bg-white/10">{link.label}</Link>)}</nav>
+            {user && <Link href="/profile/edit" onClick={() => setMenuOpen(false)} className="px-3 py-3">Profile</Link>}
+          </SheetContent>
+        </Sheet></div>
       </div>
-    </section>
-  );
+    </div>
+  </header>;
 };

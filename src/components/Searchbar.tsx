@@ -3,7 +3,7 @@
 import { Loader2, Search, SearchX, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { SafeImage } from "@/components/SafeImage";
 import { useSearch } from "@/hooks/useSearch";
@@ -31,14 +31,18 @@ const DEBOUNCE_MS = 250;
  * Debouncing stays here rather than in the hook: the keystroke rate is a UI
  * concern, and React Query keys off the settled term.
  */
-export const Searchbar = () => {
+export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
+  const resultsId = useId();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedTerm, setDebouncedTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   const query = searchTerm.trim();
 
@@ -70,12 +74,14 @@ export const Searchbar = () => {
   const isDebouncing = Boolean(query) && query !== debouncedTerm;
   const isSearching =
     isDebouncing || (Boolean(debouncedTerm) && (isPending || isFetching));
-  const hasSettled = Boolean(debouncedTerm) && !isPending && !isError;
+  const hasSettled = Boolean(debouncedTerm) && !isSearching && !isError;
 
-  // Reset the highlighted row whenever the result set changes.
+  // Reset the highlighted row when the term or result count changes. A cached
+  // response can refresh after the user presses ArrowDown; resetting on every
+  // data object update would unexpectedly clear their keyboard selection.
   useEffect(() => {
     setActiveIndex(-1);
-  }, [data]);
+  }, [query, results.length]);
 
   // Close on outside click. More reliable than an onBlur timeout, which raced
   // with clicking a result.
@@ -101,7 +107,7 @@ export const Searchbar = () => {
       setShowDropdown(false);
       return;
     }
-    if (!isOpen || results.length === 0) return;
+    if (!isOpen || isSearching || isError || results.length === 0) return;
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -114,6 +120,7 @@ export const Searchbar = () => {
       if (hit) {
         event.preventDefault();
         setShowDropdown(false);
+        onNavigate?.();
         // router.push, not window.location.href: a full document reload threw
         // away the React tree and replayed the 3s Preloader on every result.
         router.push(`/programs/${hit.id}`);
@@ -123,12 +130,14 @@ export const Searchbar = () => {
 
   return (
     <div className="relative" ref={containerRef}>
-      <div className="rounded-lg bg-white/5 h-12 py-6 md:min-w-md capitalize bg-transparent relative flex items-center">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#444]" />
+      <div className="relative mt-4 flex h-12 items-center rounded-md bg-white/10">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/60" />
         <input
+          ref={inputRef}
           type="text"
-          placeholder="What are you looking for ?"
-          className="w-full h-full absolute top-0 left-0 outline-none z-0 pl-12 pr-10 bg-transparent text-white placeholder:text-[#444]"
+          placeholder="Search titles or genres"
+          aria-label="Search titles or genres"
+          className="absolute top-0 left-0 h-full w-full rounded-md bg-transparent pl-12 pr-10 text-base text-white placeholder:text-white/50"
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -140,7 +149,8 @@ export const Searchbar = () => {
           onKeyDown={handleKeyDown}
           role="combobox"
           aria-expanded={isOpen}
-          aria-controls="search-results"
+          aria-controls={isOpen ? resultsId : undefined}
+          aria-activedescendant={activeIndex >= 0 && !isSearching ? `${resultsId}-${activeIndex}` : undefined}
           aria-autocomplete="list"
         />
         {isSearching && (
@@ -153,11 +163,11 @@ export const Searchbar = () => {
 
       {isOpen && (
         <div
-          id="search-results"
+          id={resultsId}
           role="listbox"
-          className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 overflow-hidden"
+          className="mt-3 w-full overflow-hidden rounded-lg bg-white text-black"
         >
-          {isSearching && results.length === 0 && (
+          {isSearching && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Searching…
@@ -181,14 +191,14 @@ export const Searchbar = () => {
             </div>
           )}
 
-          {results.length > 0 && (
-            <ul className="py-1 max-h-80 overflow-y-auto">
+          {!isSearching && !isError && results.length > 0 && (
+            <ul className="search-result-list overflow-y-auto py-1">
               {results.map((hit, i) => (
-                <li key={hit.id} role="option" aria-selected={i === activeIndex}>
+                <li key={hit.id} id={`${resultsId}-${i}`} role="option" aria-selected={i === activeIndex}>
                   <Link
                     href={`/programs/${hit.id}`}
                     onMouseEnter={() => setActiveIndex(i)}
-                    onClick={() => setShowDropdown(false)}
+                    onClick={() => { setShowDropdown(false); onNavigate?.(); }}
                     className={`flex items-center gap-3 px-4 py-2 cursor-pointer text-black ${
                       i === activeIndex ? "bg-gray-100" : "hover:bg-gray-100"
                     }`}

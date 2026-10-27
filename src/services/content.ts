@@ -1,7 +1,28 @@
 import apiClient, { publicApiClient } from "./api";
 import { API_Routes, buildPath } from "@/lib/api-routes";
 import { fetchAllPages } from "@/lib/fetchAllPages";
-import type { CreateContentData, UpdateContentData, Program } from "@/types";
+import type { CreateContentData, UpdateContentData, Program, ContentType, ListResponse } from "@/types";
+import { normalizeListResponse } from "@/lib/normalizeListResponse";
+import { newestEligible } from "@/lib/catalogue";
+
+// Home requests one page per category, never the entire catalogue.
+export async function listContentPreview(content_type?: ContentType, signal?: AbortSignal, featured = false) {
+  const params = new URLSearchParams({ page_size: "12" });
+  if (content_type) params.set("content_type", content_type);
+  if (featured) params.set("featured", "true");
+  const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal });
+  return newestEligible(normalizeListResponse<Program>(data));
+}
+
+export async function listCataloguePage(category?: ContentType, page = 1, signal?: AbortSignal) {
+  const params = new URLSearchParams({ page_size: "24", page: String(page) });
+  if (category) params.set("content_type", category);
+  const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal });
+  return {
+    items: newestEligible(normalizeListResponse<Program>(data)),
+    nextPage: !Array.isArray(data) && data.next ? page + 1 : undefined,
+  };
+}
 
 /* Content */
 
