@@ -3,7 +3,11 @@
 import SeasonsAccordion from "@/components/SeasonsAccordion";
 import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
-import { useContent } from "@/hooks/useContent";
+import { useQuery } from "@tanstack/react-query";
+import { listContentPreview } from "@/services/content";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter, useSearchParams } from "next/navigation";
+import { playbackDestination, signInDestination } from "@/lib/auth-return";
 import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
 import type { Episode, MiniSeries, Program, Season } from "@/types";
 import {
@@ -85,13 +89,20 @@ function getYouTubeVideoId(url: string): string | null {
 }
 
 export default function ProgramDetail({ program }: Props) {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [startedFor, setStartedFor] = useState<number | null>(null);
+  const canPlay = Boolean(user && startedFor === program.id);
+  const [partsError, setPartsError] = useState<string | null>(null);
+  const [partsLoading, setPartsLoading] = useState(program.content_type === "series" || program.content_type === "miniseries");
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
   const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
   const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
   const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
-  const [playback, dispatchPlayback] = useState(() => initialPlayback(program.trailer_link, program.streaming_link));
+  const [playback, dispatchPlayback] = useState(() => initialPlayback(null, null));
   const playbackEnded = playback.phase === "ended";
   const playbackType = playback.phase === "trailer" ? "ad" : "streaming";
   const playbackSession = playback.session;
@@ -106,7 +117,11 @@ export default function ProgramDetail({ program }: Props) {
   const [playerMode, setPlayerMode] = useState<PlayerMode>("standard");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const { data: channelContent } = useContent();
+  const { data: channelContent } = useQuery({
+    queryKey: ["content-preview", program.content_type],
+    queryFn: ({ signal }) => listContentPreview(program.content_type, signal),
+    staleTime: 60_000,
+  });
 
   const handleShare = () => {
     const url = window.location.href;
@@ -130,6 +145,8 @@ export default function ProgramDetail({ program }: Props) {
     setMiniParts([]);
     setCurrentPart(null);
     setNextPart(null);
+    setPartsError(null);
+    setPartsLoading(program.content_type === "series" || program.content_type === "miniseries");
 
     if (program.content_type === "series") {
       void getSeriesSeasons(program.id)
@@ -137,17 +154,15 @@ export default function ProgramDetail({ program }: Props) {
           const ordered = [...loadedSeasons].sort((a, b) => a.season_number - b.season_number);
           if (!cancelled) setSeasons(ordered);
           const entries = await Promise.all(ordered.map(async (season) => {
-            const episodes = await getSeasonEpisodes(season.id).catch((error) => {
-              console.error(`Failed to load episodes for season ${season.id}`, error);
-              return [];
-            });
+            const episodes = await getSeasonEpisodes(season.id);
             return [season.id, [...episodes].sort((a, b) => a.episode_number - b.episode_number)] as const;
           }));
           if (!cancelled) {
             setEpisodesBySeason(Object.fromEntries(entries));
           }
         })
-        .catch((error) => { console.error("Failed to load series episodes", error); });
+        .catch(() => { if (!cancelled) setPartsError("Episodes could not be loaded. Please reload to try again."); })
+        .finally(() => { if (!cancelled) setPartsLoading(false); });
     } else if (program.content_type === "miniseries") {
       void getMiniSeriesParts(program.id)
         .then((parts) => {
@@ -155,7 +170,8 @@ export default function ProgramDetail({ program }: Props) {
             setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
           }
         })
-        .catch((error) => { console.error("Failed to load miniseries parts", error); });
+        .catch(() => { if (!cancelled) setPartsError("Parts could not be loaded. Please reload to try again."); })
+        .finally(() => { if (!cancelled) setPartsLoading(false); });
     }
     return () => { cancelled = true; };
   }, [program.id, program.content_type]);
@@ -305,11 +321,49 @@ export default function ProgramDetail({ program }: Props) {
   }, [program.content_type, seasons, episodesBySeason, miniParts]);
 
   const playPart = useCallback((part: PlayablePart) => {
+    if (authLoading) return;
+    if (!user) { router.push(signInDestination(playbackDestination(program.id, part))); return; }
+    setStartedFor(program.id);
     setCurrentPart(part);
     dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: part.url }));
     setNextPart(null);
     setSecondsLeft(30);
-  }, []);
+  }, [authLoading, user, router, program.id]);
+
+  const watchNow = useCallback(() => {
+    if (authLoading) return;
+    if (!user) { router.push(signInDestination(playbackDestination(program.id))); return; }
+    if (orderedParts.length) { playPart(orderedParts[0]); return; }
+    if (!program.streaming_link) return;
+    setStartedFor(program.id);
+    dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
+    setCurrentPart(null); setNextPart(null);
+  }, [authLoading, user, router, program.id, program.streaming_link, orderedParts, playPart]);
+
+  const handledRequest = useRef<string | null>(null);
+  useEffect(() => {
+    if (authLoading || searchParams.get("play") !== "1") return;
+    const key = `${program.id}?${searchParams}`;
+    if (handledRequest.current === key) return;
+    if (!user) { router.replace(signInDestination(playbackDestination(program.id, {
+      episode: Number(searchParams.get("episode")) || undefined,
+      miniseries: Number(searchParams.get("part")) || undefined,
+    }))); return; }
+    if (partsLoading) return;
+    const episode = searchParams.get("episode"), part = searchParams.get("part");
+    // A selector must belong to this title; never fetch/play an arbitrary ID.
+    if (episode || part) {
+      const selected = orderedParts.find((item) => episode ? String(item.episode) === episode : String(item.miniseries) === part);
+      if (selected) { handledRequest.current = key; playPart(selected); }
+      else if (!partsError) setPartsError("The selected episode is unavailable. Choose another below.");
+    } else {
+      // Episodic data may still be awaiting its first effect; wait for parts.
+      if ((program.content_type === "series" || program.content_type === "miniseries") && !orderedParts.length && !partsError) return;
+      handledRequest.current = key; watchNow();
+    }
+  }, [authLoading, user, searchParams, program.id, program.content_type, partsLoading, partsError, orderedParts, router, playPart, watchNow]);
+
+  useEffect(() => { if (!user) { setStartedFor(null); setNextPart(null); } }, [user]);
 
   const handlePlaybackEnded = useCallback(() => {
     if (playbackType === "ad") {
@@ -326,24 +380,28 @@ export default function ProgramDetail({ program }: Props) {
   }, [playbackType, currentPart, orderedParts, startMain]);
 
   useEffect(() => {
-    if (!nextPart) return;
+    if (!nextPart || !canPlay) return;
     const timer = window.setInterval(() => setSecondsLeft((seconds) => Math.max(0, seconds - 1)), 1000);
     return () => window.clearInterval(timer);
-  }, [nextPart]);
+  }, [nextPart, canPlay]);
 
   useEffect(() => {
-    if (nextPart && secondsLeft === 0) playPart(nextPart);
-  }, [nextPart, secondsLeft, playPart]);
+    if (canPlay && nextPart && secondsLeft === 0) playPart(nextPart);
+  }, [nextPart, secondsLeft, playPart, canPlay]);
 
   return (
     <>
-      <div className="watch-layout" data-player-mode={playerMode}>
+      <div className="watch-layout pt-5 md:pt-8" data-player-mode={playerMode}>
       <div
         ref={videoPlayerRef}
         className="player-band group relative min-w-0 w-full bg-black"
       >
         <div className="player-frame">
-          {playbackType === "ad" && Boolean(program.streaming_link) && (
+          {!canPlay && <div className="absolute inset-0 overflow-hidden rounded-lg">
+            <SafeImage src={program.thumbnail} alt={program.title} fill priority sizes="(min-width: 1200px) 74vw, 100vw" className="object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/35"><button onClick={watchNow} disabled={authLoading || (!program.streaming_link && !orderedParts.length)} className="primary-action disabled:opacity-60">{partsLoading ? "Loading episodes…" : "Watch Now"}</button></div>
+          </div>}
+          {canPlay && playbackType === "ad" && Boolean(program.streaming_link) && (
             <button
               onClick={startMain}
               className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
@@ -351,10 +409,10 @@ export default function ProgramDetail({ program }: Props) {
               Skip
             </button>
           )}
-          {urlType === "youtube" && youtubeId && (
+          {canPlay && urlType === "youtube" && youtubeId && (
             <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} />
           )}
-          {urlType === "direct" && (
+          {canPlay && urlType === "direct" && (
             <TrackedVideo
               key={`${currentVideoUrl}:${playbackSession}`}
               src={currentVideoUrl as string}
@@ -364,13 +422,13 @@ export default function ProgramDetail({ program }: Props) {
               }}
             />
           )}
-          {!urlType && (
+          {canPlay && !urlType && (
             <div className="flex h-full items-center justify-center px-4 text-center text-sm text-white/70" role="status">
               {currentVideoUrl ? "This video link is unsupported." : "Video is unavailable."}
             </div>
           )}
 
-          {nextPart && (
+          {canPlay && nextPart && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 p-4">
               <div role="dialog" aria-label="Next episode" className="max-h-full w-full max-w-md overflow-y-auto rounded-xl border border-white/20 bg-neutral-950 p-6 text-center shadow-xl">
                 <p className="text-sm font-semibold uppercase tracking-wide text-teal-400">Up next</p>
@@ -384,7 +442,7 @@ export default function ProgramDetail({ program }: Props) {
             </div>
           )}
 
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+          {canPlay && <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
             {!isFullscreen && (
               <button
                 type="button"
@@ -428,7 +486,7 @@ export default function ProgramDetail({ program }: Props) {
                 {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               </span>
             </button>
-          </div>
+          </div>}
         </div>
       </div>
       <aside className="watch-sidebar" aria-label="Movie information">
@@ -442,41 +500,37 @@ export default function ProgramDetail({ program }: Props) {
           />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-white">{program.title}</h1>
-            <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
-            <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
+            <p className="mt-3 text-sm capitalize text-teal-300">{program.content_type}</p>
+            <p className="mt-2 text-sm text-white/70">{[program.duration, program.genre, program.country].filter(Boolean).join(" · ")}</p>
           </div>
         </div>
-        <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
-          {program.description}
-        </p>
-        <div className="mt-6 grid grid-cols-2 gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Button
-            onClick={() => {
-              dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
-              setCurrentPart(null);
-              setNextPart(null);
-            }}
-            disabled={!program.streaming_link || (currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
-            className="h-11 w-full rounded-lg bg-gradient-to-tr from-chart-4/60 to-chart-5/60 text-black uppercase cursor-pointer"
+            onClick={watchNow}
+            disabled={authLoading || (!program.streaming_link && !orderedParts.length) || (canPlay && currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
+            className="primary-action min-w-40"
           >
             Watch now
           </Button>
           {program.trailer_link && (
             <Button
               onClick={() => {
+                if (authLoading) return;
+                if (!user) { router.push(signInDestination(playbackDestination(program.id))); return; }
+                setStartedFor(program.id);
                 dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
                 setCurrentPart(null);
                 setNextPart(null);
               }}
-              disabled={playbackType === "ad" && !playbackEnded}
-              className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
+              disabled={authLoading || (canPlay && playbackType === "ad" && !playbackEnded)}
+              className="h-11 min-w-40 rounded-lg border border-white/20 bg-transparent px-4 text-white uppercase cursor-pointer hover:bg-white/10"
             >
               Watch trailer
             </Button>
           )}
           <Button
             onClick={handleShare}
-            className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
+            className="h-11 min-w-28 rounded-lg border border-white/20 bg-transparent px-4 text-white uppercase cursor-pointer hover:bg-white/10"
           >
             {isCopied ? "Copied!" : "Share"}
           </Button>
@@ -498,7 +552,7 @@ export default function ProgramDetail({ program }: Props) {
         the exact moment a viewer is most likely to want to know what they are
         watching, and taking the episode list away mid-series.
       */}
-      <div className="container mx-auto px-4 mt-14 pb-24">
+      <div className="content-section mt-8 pb-4 md:mt-10">
           <div className="max-w-4xl">
             <div>
               <h2 className="text-3xl font-bold mb-6 text-white/80">
@@ -508,33 +562,31 @@ export default function ProgramDetail({ program }: Props) {
                 {program.description}
               </p>
 
-              <h2 className="text-3xl font-bold mb-6 text-white/80">
-                Overview
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                <div>
+              {(program.director || program.writer || program.genre) && <h2 className="text-2xl font-bold mb-6 text-white/80">Overview</h2>}
+              {(program.director || program.writer || program.genre) && <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+                {program.director && <div>
                   <h3 className="text-xl font-semibold text-white/80">
                     Director
                   </h3>
                   <p className="text-white/70 mt-1 text-white/60">
-                    {program.director || "N/A"}
+                    {program.director}
                   </p>
-                </div>
-                <div>
+                </div>}
+                {program.writer && <div>
                   <h3 className="text-xl font-semibold text-white/80">
                     Writer
                   </h3>
                   <p className="text-white/70 mt-1 text-white/60">
-                    {program.writer || "N/A"}
+                    {program.writer}
                   </p>
-                </div>
-                <div>
+                </div>}
+                {program.genre && <div>
                   <h3 className="text-xl font-semibold text-white/80">Genre</h3>
                   <p className="text-white/70 mt-1 text-white/60">
-                    {program.genre || "N/A"}
+                    {program.genre}
                   </p>
-                </div>
-              </div>
+                </div>}
+              </div>}
 
               {program.content_type === "series" && (
                 <div className="mt-10">
@@ -555,6 +607,8 @@ export default function ProgramDetail({ program }: Props) {
                   />
                 </div>
               )}
+              {partsLoading && <p role="status" className="mt-4 text-white/65">Loading episodes…</p>}
+              {partsError && <p role="alert" className="mt-4 text-amber-200">{partsError}</p>}
               {program.content_type === "miniseries" && miniParts.length > 0 && (
                 <div className="mt-10">
                   <h2 className="mb-6 text-3xl font-bold text-white/80">Parts</h2>
@@ -584,7 +638,7 @@ export default function ProgramDetail({ program }: Props) {
           </div>
       </div>
       {channelPrograms.length > 0 && (
-        <div id="similar-programs" className="w-full mx-auto p-5 lg:p-14 mb-24">
+        <div id="similar-programs" className="content-section">
           <div className="mb-8 flex items-center justify-between">
             <h3 className="text-xl font-medium">Similar titles</h3>
             <Link href="/programs" className="font-normal text-md flex items-center space-x-3">
@@ -592,7 +646,7 @@ export default function ProgramDetail({ program }: Props) {
               <ChevronRight size={18} strokeWidth={1.5}/>
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 lg:gap-5">
             {channelPrograms.map((item, index) => (
               <ProgramCard
                 key={index}
