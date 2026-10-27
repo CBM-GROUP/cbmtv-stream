@@ -1,11 +1,11 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { CATEGORIES } from "@/lib/catalogue";
+import { CATEGORIES, newestEligible } from "@/lib/catalogue";
 import { listContentPreview } from "@/services/content";
 
 export function useHomeCatalogue() {
-  return useQueries({ queries: CATEGORIES.map(({ type }) => ({
-    queryKey: ["content-preview", type],
-    queryFn: ({ signal }: { signal: AbortSignal }) => listContentPreview(type, signal),
+  return useQueries({ queries: CATEGORIES.map(({ type, types }) => ({
+    queryKey: ["home-category", type],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => newestEligible((await Promise.all(types.map((contentType) => listContentPreview(contentType, signal)))).flat()),
     staleTime: 60_000,
     retry: 1,
   })) });

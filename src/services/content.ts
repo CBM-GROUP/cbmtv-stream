@@ -14,14 +14,33 @@ export async function listContentPreview(content_type?: ContentType, signal?: Ab
   return newestEligible(normalizeListResponse<Program>(data));
 }
 
-export async function listCataloguePage(category?: ContentType, page = 1, signal?: AbortSignal) {
-  const params = new URLSearchParams({ page_size: "24", page: String(page) });
-  if (category) params.set("content_type", category);
-  const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal });
-  return {
-    items: newestEligible(normalizeListResponse<Program>(data)),
-    nextPage: !Array.isArray(data) && data.next ? page + 1 : undefined,
+export type CatalogueCursor = number | { series?: number; miniseries?: number };
+
+export async function listCataloguePage(category?: ContentType, page: CatalogueCursor = 1, signal?: AbortSignal) {
+  const fetchPage = async (type: ContentType | undefined, pageNumber: number) => {
+    const params = new URLSearchParams({ page_size: "24", page: String(pageNumber) });
+    if (type) params.set("content_type", type);
+    const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal });
+    return { items: normalizeListResponse<Program>(data), next: !Array.isArray(data) && Boolean(data.next) };
   };
+  if (category === "series") {
+    const cursor = typeof page === "number" ? { series: page, miniseries: page } : page;
+    const [series, miniseries] = await Promise.all([
+      cursor.series ? fetchPage("series", cursor.series) : undefined,
+      cursor.miniseries ? fetchPage("miniseries", cursor.miniseries) : undefined,
+    ]);
+    const nextPage = {
+      series: series?.next ? (cursor.series ?? 0) + 1 : undefined,
+      miniseries: miniseries?.next ? (cursor.miniseries ?? 0) + 1 : undefined,
+    };
+    return {
+      items: newestEligible([...(series?.items ?? []), ...(miniseries?.items ?? [])]),
+      nextPage: nextPage.series || nextPage.miniseries ? nextPage : undefined,
+    };
+  }
+  const pageNumber = typeof page === "number" ? page : 1;
+  const response = await fetchPage(category, pageNumber);
+  return { items: newestEligible(response.items), nextPage: response.next ? pageNumber + 1 : undefined };
 }
 
 /* Content */

@@ -349,6 +349,9 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.channel-rail { scrollbar-width: none; }
+.channel-rail::-webkit-scrollbar { display: none; }
+
 .embla__slide {
   min-width: 0;
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectNewReleases, newestEligible } from "../src/lib/catalogue.ts";
+import { CATEGORIES, selectNewReleases, newestEligible } from "../src/lib/catalogue.ts";
 import { playbackDestination, safeReturnTo, signInDestination } from "../src/lib/auth-return.ts";
 
 const item = (id, content_type, channel, created_at, status = "approved") => ({
@@ -9,15 +9,19 @@ const item = (id, content_type, channel, created_at, status = "approved") => ({
 
 test("new releases choose one approved item per category, preferring another channel", () => {
   const rows = [
+    item(94, "original", 1, "2026-10-24"),
+    item(93, "original", 8, "2026-10-18"),
     item(90, "movie", 1, "2026-10-20"),
     item(89, "movie", 9, "2026-10-19"),
     item(88, "series", 1, "2026-10-21"),
-    item(87, "series", 2, "2026-10-18"),
+    item(87, "miniseries", 2, "2026-10-18"),
     item(86, "documentary", 1, "2026-10-22"),
     item(85, "documentary", 3, "2026-10-10", "preview"),
     item(84, "animations", 1, "2026-10-23"),
   ];
-  assert.deepEqual(selectNewReleases([...rows, rows[0]]).map((row) => row.id), [90, 87, 86, 84]);
+  assert.deepEqual(CATEGORIES.map(({ title }) => title), ["TV Shows", "Movies", "Series", "Animations", "Documentaries"]);
+  assert.deepEqual(CATEGORIES.find(({ type }) => type === "series")?.types, ["series", "miniseries"]);
+  assert.deepEqual(selectNewReleases([...rows, rows[0]]).map((row) => row.id), [94, 89, 87, 84, 86]);
   assert.deepEqual(newestEligible([item(2, "movie", 1, "2026-10-20"), item(3, "movie", 1, "2026-10-20")]).map((row) => row.id), [3, 2]);
 });
 
