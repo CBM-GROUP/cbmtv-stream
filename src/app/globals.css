@@ -247,6 +247,9 @@ body {
 
 .site-header { position: sticky; top: 0; z-index: 40; height: var(--header-h); transition: background-color .2s; }
 .site-header-inner { height: 100%; display: flex; align-items: center; padding-inline: var(--page-gutter); }
+/* The square brand asset includes transparent space above and below its ink.
+ * Centre the intact image in a compact link; do not crop or stretch the art. */
+.brand-logo { max-width: none; flex-shrink: 0; object-fit: contain; pointer-events: none; }
 .site-header-overlay { background: linear-gradient(to bottom, rgba(0,0,0,.85), rgba(0,0,0,.05)); }
 .site-header-solid { background: rgba(15,15,15,.97); }
 /* Keep the homepage's geometry stable when the sticky header changes colour. */
@@ -351,6 +354,19 @@ body {
 
 .channel-rail { scrollbar-width: none; }
 .channel-rail::-webkit-scrollbar { display: none; }
+.channel-card { width: 176px; }
+@media (min-width: 640px) { .channel-card { width: 208px; } }
+@media (min-width: 1024px) { .channel-card { width: 240px; } }
+
+.player-options { position: absolute; top: .5rem; right: .5rem; z-index: 20; display: flex; gap: .25rem; transition: opacity .2s; }
+/* Keep the compact control area receptive to hover/touch over cross-origin
+ * iframes, whose pointer events cannot reach the surrounding player. */
+.player-options[data-visible="false"] { opacity: 0; }
+.player-options[data-visible="false"] > * { pointer-events: none; }
+.player-options:has(:focus-visible) { opacity: 1; }
+.player-options:has(:focus-visible) > * { pointer-events: auto; }
+.player-option-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: .375rem; background: rgba(0,0,0,.7); color: white; cursor: pointer; }
+.player-option-button:hover { background: rgba(0,0,0,.9); }
 
 .embla__slide {
   min-width: 0;

@@ -6,18 +6,13 @@ import { Button } from "@/components/ui/button";
 import { useContent } from "@/hooks/useContent";
 import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
 import type { Episode, MiniSeries, Program, Season } from "@/types";
-import {
-  ChevronRight,
-  Maximize,
-  Minimize,
-  RectangleHorizontal,
-  Square,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
 import { TrackedVideo } from "./TrackedVideo";
 import { TrackedYouTube } from "./TrackedYouTube";
+import { PlayerOptions } from "./PlayerOptions";
 import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
 
 type Props = {
@@ -105,6 +100,7 @@ export default function ProgramDetail({ program }: Props) {
   // returning viewer's preference after mount to avoid a hydration mismatch.
   const [playerMode, setPlayerMode] = useState<PlayerMode>("standard");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const { data: channelContent } = useContent();
 
@@ -341,6 +337,9 @@ export default function ProgramDetail({ program }: Props) {
       <div
         ref={videoPlayerRef}
         className="player-band group relative min-w-0 w-full bg-black"
+        onPlayingCapture={() => setIsPlaying(true)}
+        onPauseCapture={() => setIsPlaying(false)}
+        onEndedCapture={() => setIsPlaying(false)}
       >
         <div className="player-frame">
           {playbackType === "ad" && Boolean(program.streaming_link) && (
@@ -352,7 +351,7 @@ export default function ProgramDetail({ program }: Props) {
             </button>
           )}
           {urlType === "youtube" && youtubeId && (
-            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} />
+            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
           )}
           {urlType === "direct" && (
             <TrackedVideo
@@ -384,51 +383,7 @@ export default function ProgramDetail({ program }: Props) {
             </div>
           )}
 
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-            {!isFullscreen && (
-              <button
-                type="button"
-                onClick={toggleMode}
-                aria-pressed={playerMode === "theater"}
-                title={
-                  playerMode === "theater"
-                    ? "Switch to default view"
-                    : "Switch to cinema mode"
-                }
-                className="flex items-center gap-2 h-9 px-3 rounded-md bg-black/70 text-white hover:bg-black/90 cursor-pointer backdrop-blur-sm"
-              >
-                {playerMode === "theater" ? (
-                  <Square size={16} strokeWidth={1.75} aria-hidden="true" />
-                ) : (
-                  <RectangleHorizontal
-                    size={18}
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="text-sm">
-                  {playerMode === "theater"
-                    ? "Default view"
-                    : "Cinema mode"}
-                </span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              className="flex items-center justify-center h-9 w-9 rounded-md bg-black/70 text-white hover:bg-black/90 cursor-pointer backdrop-blur-sm"
-            >
-              {isFullscreen ? (
-                <Minimize size={16} strokeWidth={1.75} aria-hidden="true" />
-              ) : (
-                <Maximize size={16} strokeWidth={1.75} aria-hidden="true" />
-              )}
-              <span className="sr-only">
-                {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              </span>
-            </button>
-          </div>
+          <PlayerOptions playerRef={videoPlayerRef} playing={isPlaying && !playbackEnded && !nextPart} cinema={playerMode === "theater"} fullscreen={isFullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} />
         </div>
       </div>
       <aside className="watch-sidebar" aria-label="Movie information">
