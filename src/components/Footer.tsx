@@ -14,14 +14,15 @@ export const Footer = () => {
         <Link
           href="/"
           aria-label="CBM TV home"
-          className="relative block h-14 w-32 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300"
+          className="flex h-20 w-48 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 sm:w-52"
         >
           <Image
             src="/images/cbm logo (1).png"
             alt="CBM TV"
-            fill
-            sizes="128px"
-            className="object-contain"
+            width={500}
+            height={500}
+            sizes="(min-width: 640px) 208px, 192px"
+            className="brand-logo h-48 w-48 sm:h-52 sm:w-52"
           />
         </Link>
 

@@ -31,11 +31,11 @@ export const NavBar = () => {
   return <header className={`site-header ${pathname === "/" ? "site-header-home" : ""} ${pathname === "/" && !scrolled ? "site-header-overlay" : "site-header-solid"}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>
     <div className="site-header-inner">
-      <Link href="/" aria-label="CBM TV home" className="shrink-0 rounded"><Image src="/images/cbm logo (1).png" width={128} height={56} className="h-11 w-24 object-contain md:w-28" alt="CBM TV" priority /></Link>
+      <Link href="/" aria-label="CBM TV home" className="flex h-full shrink-0 items-center rounded"><Image src="/images/cbm logo (1).png" width={500} height={500} className="brand-logo h-28 w-28 min-[360px]:h-32 min-[360px]:w-32 md:h-40 md:w-40" sizes="(min-width: 768px) 160px, (min-width: 360px) 128px, 112px" alt="CBM TV" priority /></Link>
       <nav className="ml-7 hidden items-center gap-6 text-sm font-medium md:flex" aria-label="Main navigation">
         {links.map((link) => <Link key={link.href} href={link.href} aria-current={link.href === pathname ? "page" : undefined} className="whitespace-nowrap text-white/80 hover:text-teal-300">{link.label}</Link>)}
       </nav>
-      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+      <div className="ml-auto flex items-center gap-1 sm:gap-3">
         <SearchSheet />
         {user ? <Popover><PopoverTrigger className="header-icon" aria-label="Account menu"><UserRound size={21} /></PopoverTrigger>
           <PopoverContent align="end" className="w-52 border-white/10 bg-neutral-900 text-white"><p className="truncate px-2 pb-3 text-sm text-white/60">{user.name}</p><Link href="/profile/edit" className="block rounded p-2 hover:bg-white/10">Profile</Link><button onClick={logout} className="flex w-full items-center gap-2 rounded p-2 text-left hover:bg-white/10"><LogOut size={16} />Sign out</button></PopoverContent>

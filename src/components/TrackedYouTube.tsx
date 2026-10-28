@@ -33,10 +33,12 @@ function youtubeApi(): Promise<YouTubeApi> {
   return apiPromise;
 }
 
-export function TrackedYouTube({ videoId, onEnded }: { videoId: string; onEnded: () => void }) {
+export function TrackedYouTube({ videoId, onEnded, onPlaybackChange }: { videoId: string; onEnded: () => void; onPlaybackChange?: (playing: boolean) => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const endedRef = useRef(onEnded);
   endedRef.current = onEnded;
+  const playbackChangeRef = useRef(onPlaybackChange);
+  playbackChangeRef.current = onPlaybackChange;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -54,6 +56,7 @@ export function TrackedYouTube({ videoId, onEnded }: { videoId: string; onEnded:
             player?.playVideo();
           },
           onStateChange: ({ data }) => {
+            playbackChangeRef.current?.(data === 1);
             if (data === 0) endedRef.current();
           },
         },
