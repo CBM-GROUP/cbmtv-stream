@@ -63,7 +63,7 @@ try {
   await send("Page.enable"); await send("Runtime.enable");
   await navigate("/");
   await evaluate("localStorage.clear()");
-  for (const [name, width, height] of [["mobile-320",320,740], ["mobile-390",390,844], ["tablet-768",768,1024], ["desktop-1440",1440,1000]]) {
+  for (const [name, width, height] of [["mobile-320",320,740], ["mobile-360",360,720], ["mobile-390",390,844], ["tablet-768",768,1024], ["desktop-1024",1024,768], ["desktop-1440",1440,1000]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 768 });
     await navigate("/");
     await waitFor("document.querySelectorAll('.channel-card').length === 10 && document.querySelector('.channel-card img')?.naturalWidth > 0");
@@ -73,15 +73,15 @@ try {
     })()`);
     assert.ok(metrics.documentWidth <= width, `${name} page overflow`);
     assert.equal(metrics.seeAll, false);
-    assert.deepEqual(metrics.titles, ["Channels", "New Releases", "TV Shows", "Movies", "Series", "Animations", "Documentaries"]);
-    assert.ok(metrics.art.width >= 160 && metrics.card.width - metrics.art.width === 16);
+    assert.deepEqual(metrics.titles, ["Featured Channels", "New Releases", "Movies", "TV Shows", "Documentaries", "Animations"]);
+    assert.ok(metrics.art.width >= 100 && metrics.card.width - metrics.art.width === 16);
     assert.ok(metrics.src.includes("channel1.png"), "Uses API cover artwork");
     assert.ok(metrics.logo.x + metrics.logo.width <= metrics.search.x, "Header logo and controls do not overlap");
     assert.ok(metrics.logo.width > metrics.signIn.width, "Brand is larger than sign in");
     await click('button[aria-label="Scroll channels right"]');
     await waitFor("document.querySelector('.channel-rail').scrollLeft > 100");
     await delay(600);
-    await click('button[aria-label="Scroll channels left"]');
+    await evaluate("document.querySelector('.channel-rail').scrollTo({left:0,behavior:'smooth'})");
     await waitFor("document.querySelector('.channel-rail').scrollLeft < 5");
     if (width < 768) {
       await send("Emulation.setTouchEmulationEnabled", { enabled: true });

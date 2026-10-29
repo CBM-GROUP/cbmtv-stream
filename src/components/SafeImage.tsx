@@ -36,9 +36,8 @@ type SafeImageProps = Omit<ImageProps, "src"> & {
  *      get-img-props.js, which returns the raw src before ever calling the
  *      loader that throws).
  *
- * Local assets keep normal optimisation; only remote ones opt out. If a host
- * becomes permanent, add it to `remotePatterns` and it can use plain
- * next/image again.
+ * Local assets and our configured S3 image directory use optimisation.
+ * Arbitrary editor-supplied hosts opt out so they remain renderable.
  */
 export function SafeImage({
   src,
@@ -55,13 +54,17 @@ export function SafeImage({
 
   const resolved = !failed && isRenderableSrc(src) ? src : fallbackSrc;
   const isLocal = resolved.startsWith("/");
+  const remote = isLocal ? null : new URL(resolved);
+  const isConfiguredImage = remote?.protocol === "https:" &&
+    remote.hostname === process.env.NEXT_PUBLIC_S3_IMAGE_HOST &&
+    remote.pathname.startsWith("/cbm-images/");
 
   return (
     <Image
       {...rest}
       alt={alt}
       src={resolved}
-      unoptimized={Boolean(unoptimized) || !isLocal}
+      unoptimized={Boolean(unoptimized) || (!isLocal && !isConfiguredImage)}
       onError={() => setFailed(true)}
     />
   );
