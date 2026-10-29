@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { searchContent, type SearchResponse } from "@/services/search";
 
@@ -14,9 +14,14 @@ import { searchContent, type SearchResponse } from "@/services/search";
 export function useSearch(query: string, limit = 8) {
   const term = query.trim();
 
-  return useQuery<SearchResponse>({
+  const queryResult = useInfiniteQuery({
     queryKey: ["search", term, limit],
-    queryFn: ({ signal }) => searchContent(term, limit, signal),
+    queryFn: ({ signal, pageParam }) => searchContent(term, limit, signal, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _pages, lastOffset) => {
+      const next = lastPage.next_offset;
+      return Number.isSafeInteger(next) && (next as number) > lastOffset && lastPage.hits.length > 0 ? next as number : undefined;
+    },
     enabled: term.length > 0,
     // Results for a given term rarely change within a session, and the same
     // term is re-typed constantly while backspacing.
@@ -25,4 +30,13 @@ export function useSearch(query: string, limit = 8) {
     // hanging the dropdown through three silent retries.
     retry: 1,
   });
+  const pages = queryResult.data?.pages;
+  const hits = [...new Map((pages?.flatMap((page) => page.hits) ?? []).filter((hit) => hit.status === "approved").map((hit) => [hit.id, hit])).values()];
+  const data: SearchResponse | undefined = pages?.length ? { ...pages[pages.length - 1], hits, count: hits.length } : undefined;
+  return {
+    ...queryResult, data,
+    // Appending a page must keep the existing list and keyboard target visible.
+    isFetching: queryResult.isFetching && !queryResult.isFetchingNextPage,
+    isError: queryResult.isError && !queryResult.isFetchNextPageError,
+  };
 }

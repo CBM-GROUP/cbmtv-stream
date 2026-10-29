@@ -13,7 +13,7 @@ import { SearchSheet } from "./SearchSheet";
 const links = [
   { href: "/", label: "Stream Bird" },
   { href: "/channels", label: "Channel Box" },
-  { href: "/programs", label: "Trends" },
+  { href: "/trends", label: "Trends" },
 ];
 
 export const NavBar = () => {
