@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProgramDetail from "@/components/ProgramDetail";
 import { cache } from "react";
+import { isAxiosError } from "axios";
 
 // Axios does not receive Next's automatic fetch deduplication. Metadata and
 // the page both need this record, so share the request within one render.
@@ -33,19 +34,27 @@ export async function generateMetadata({
 
 export default async function ProgramDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const { id } = await params;
+  if (!/^[1-9]\d*$/.test(id)) notFound();
   try {
-    const awaitedParams = await params;
-    const program = await getProgram(awaitedParams.id);
+    const program = await getProgram(id);
 
     if (!program) {
       notFound();
     }
 
-    return <ProgramDetail program={program.data} />;
-  } catch {
-    notFound();
+    if (program.data.status !== "approved") notFound();
+    const query = await searchParams;
+    const valid = (value: string | string[] | undefined) => typeof value === "string" && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
+    const invalid = Boolean((query.episode && !valid(query.episode)) || (query.part && !valid(query.part)) || (query.episode && query.part));
+    return <ProgramDetail key={program.data.id} program={program.data} requested={{ episode: valid(query.episode) ? Number(query.episode) : undefined, miniseries: valid(query.part) ? Number(query.part) : undefined, invalid }} />;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) notFound();
+    throw error;
   }
 }

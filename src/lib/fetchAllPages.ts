@@ -1,4 +1,4 @@
-import type { AxiosInstance } from "axios";
+import type { AxiosInstance, AxiosRequestConfig } from "axios";
 
 import { normalizeListResponse } from "./normalizeListResponse";
 
@@ -26,13 +26,14 @@ export async function fetchAllPages<T>(
   client: AxiosInstance,
   path: string,
   maxPages = 50,
+  options?: AxiosRequestConfig,
 ): Promise<T[]> {
   const items: T[] = [];
   let url: string | null = path;
   let pages = 0;
 
   while (url && pages < maxPages) {
-    const response = await client.get(url);
+    const response = await client.get(url, options);
     items.push(...normalizeListResponse<T>(response.data));
 
     const body = response.data as { next?: unknown } | null;

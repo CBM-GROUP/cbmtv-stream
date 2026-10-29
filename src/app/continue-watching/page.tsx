@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { LibraryPage } from "@/components/LibraryPage";
 
 export default function ContinueWatchingRedirect() {
-  redirect("/programs");
+  return <LibraryPage kind="progress" />;
 }

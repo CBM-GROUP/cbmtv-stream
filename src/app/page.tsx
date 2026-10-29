@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { HomeHero } from "@/components/HomeHero";
 import { ContentRail } from "@/components/ContentRail";
 import { SafeImage } from "@/components/SafeImage";
+import { ContinueWatchingRail } from "@/components/ContinueWatchingRail";
 import { useAds } from "@/hooks/useAds";
 import { useChannels } from "@/hooks/useChannels";
 import { useHeroSettings } from "@/hooks/useHeroSettings";
@@ -29,6 +30,7 @@ export default function HomePage() {
   return <>
     <HomeHero slides={slides} featured={featured.data?.[0]} loading={featured.isPending || advertsLoading} imageDurationSeconds={settings?.image_duration_seconds ?? 20} />
     <div className="home-catalogue">
+      <ContinueWatchingRail />
       {(channelsLoading || channelsError || Boolean(channels?.length)) && <section className="content-section" aria-label="Featured Channels">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="section-title">Featured Channels</h2>

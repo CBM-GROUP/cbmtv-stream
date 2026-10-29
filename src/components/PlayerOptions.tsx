@@ -4,13 +4,14 @@ import * as Popover from "@radix-ui/react-popover";
 import { Maximize, Minimize, MoreVertical, RectangleHorizontal } from "lucide-react";
 import { useEffect, useState, type RefObject } from "react";
 
-export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema, onFullscreen }: {
+export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema, onFullscreen, onSkipTrailer }: {
   playerRef: RefObject<HTMLDivElement | null>;
   playing: boolean;
   cinema: boolean;
   fullscreen: boolean;
   onCinema: () => void;
   onFullscreen: () => void;
+  onSkipTrailer?: () => void;
 }) {
   const [visible, setVisible] = useState(true);
   const [open, setOpen] = useState(false);
@@ -51,6 +52,7 @@ export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema
       <Popover.Trigger className="player-option-button" aria-label="Player options" title="Player options"><MoreVertical size={20} aria-hidden="true" /></Popover.Trigger>
       {/* Stay inside the fullscreen element instead of portalling to body. */}
       <Popover.Content align="end" sideOffset={6} aria-label="Player options" className="z-30 w-48 rounded-md border border-white/15 bg-neutral-950 p-1 text-white shadow-xl">
+        {onSkipTrailer && <button type="button" onClick={() => { onSkipTrailer(); setOpen(false); }} className="flex min-h-11 w-full items-center rounded px-3 text-left text-sm hover:bg-white/10">Skip trailer</button>}
         <button type="button" aria-pressed={cinema} onClick={() => { onCinema(); setOpen(false); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-left text-sm hover:bg-white/10">
           <RectangleHorizontal size={18} aria-hidden="true" />{cinema ? "Exit cinema mode" : "Cinema mode"}
         </button>
