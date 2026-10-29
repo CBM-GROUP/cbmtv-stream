@@ -11,6 +11,14 @@ export const CATEGORIES: { type: ContentType; title: string; types: ContentType[
 
 export const BROWSE_CATEGORIES = [...CATEGORIES, { type: "music" as ContentType, title: "Music Videos", types: ["music" as ContentType] }];
 
+// Home groups all episodic formats under TV Shows; browse filters stay intact.
+export const HOME_CATEGORIES: { type: ContentType; title: string; types: ContentType[]; href: string }[] = [
+  { type: "movie", title: "Movies", types: ["movie"], href: "/programs?category=movie" },
+  { type: "original", title: "TV Shows", types: ["original", "series", "miniseries"], href: "/programs" },
+  { type: "documentary", title: "Documentaries", types: ["documentary"], href: "/programs?category=documentary" },
+  { type: "animations", title: "Animations", types: ["animations"], href: "/programs?category=animations" },
+];
+
 export function newestEligible(items: Program[]): Program[] {
   const unique = new Map<number, Program>();
   for (const item of items) {

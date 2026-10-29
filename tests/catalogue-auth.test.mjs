@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CATEGORIES, selectNewReleases, newestEligible } from "../src/lib/catalogue.ts";
+import { CATEGORIES, HOME_CATEGORIES, selectNewReleases, newestEligible } from "../src/lib/catalogue.ts";
 import { playbackDestination, safeReturnTo, signInDestination } from "../src/lib/auth-return.ts";
 
 const item = (id, content_type, channel, created_at, status = "approved") => ({
@@ -31,4 +31,11 @@ test("sign-in return keeps only a known internal playback route", () => {
   assert.equal(safeReturnTo("/programs/14?play=1&episode=23&next=https://evil.test"), "/programs/14?play=1&episode=23");
   assert.equal(safeReturnTo("/programs/14%2f..%2f15?play=1"), "/");
   assert.equal(signInDestination("/programs/14?play=1"), "/sign-in?returnTo=%2Fprograms%2F14%3Fplay%3D1");
+});
+
+test("home keeps all episodic formats in TV Shows without changing browse filters", () => {
+  assert.deepEqual(HOME_CATEGORIES.map(({ title }) => title), ["Movies", "TV Shows", "Documentaries", "Animations"]);
+  assert.deepEqual(HOME_CATEGORIES.find(({ title }) => title === "TV Shows").types, ["original", "series", "miniseries"]);
+  assert.deepEqual(CATEGORIES.find(({ type }) => type === "original").types, ["original"]);
+  assert.deepEqual(HOME_CATEGORIES.flatMap(({ types }) => types).sort(), CATEGORIES.flatMap(({ types }) => types).sort());
 });

@@ -1,27 +1,23 @@
 "use client";
 
 import { useId, useRef } from "react";
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { Program } from "@/types";
 import { ProgramCard } from "./ProgramCard";
 
-export function ContentRail({ title, items = [], loading = false, error = false, onRetry, href }: {
-  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void; href?: string;
+export function ContentRail({ title, items = [], loading = false, error = false, onRetry }: {
+  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void;
 }) {
   const track = useRef<HTMLDivElement>(null);
   const id = useId();
   if (!loading && !error && !items.length) return null;
   return <section className="content-section" aria-labelledby={id}>
-    <div className="mb-3 flex items-center justify-between gap-4">
-      <h2 id={id} className="text-xl font-semibold tracking-tight md:text-2xl">{title}</h2>
-      <div className="flex items-center gap-3">
-        {href && <Link href={href} className="text-sm text-teal-300 hover:text-white">See all</Link>}
-        {!loading && !error && <div className="hidden gap-1 md:flex">
-          <button className="rail-arrow" aria-label={`Scroll ${title} left`} onClick={() => track.current?.scrollBy({ left: -track.current.clientWidth * .8, behavior: "smooth" })}><ChevronLeft size={20} /></button>
-          <button className="rail-arrow" aria-label={`Scroll ${title} right`} onClick={() => track.current?.scrollBy({ left: track.current.clientWidth * .8, behavior: "smooth" })}><ChevronRight size={20} /></button>
-        </div>}
-      </div>
+    <div className="mb-3 flex min-h-11 items-center justify-between gap-4">
+      <h2 id={id} className="section-title">{title}</h2>
+      {!loading && !error && <button type="button" className="rail-arrow" aria-label={`Scroll ${title} right`} onClick={() => {
+        const rail = track.current;
+        if (rail) rail.scrollTo({ left: rail.scrollLeft >= rail.scrollWidth - rail.clientWidth - 2 ? 0 : rail.scrollLeft + rail.clientWidth * .8, behavior: "smooth" });
+      }}><ChevronRight size={18} /></button>}
     </div>
     {error ? <div className="flex items-center gap-4 py-5 text-sm text-white/65" role="alert"><p>Couldn&apos;t load {title.toLowerCase()}.</p><button onClick={onRetry} className="text-teal-300 underline">Try again</button></div> :
       <div ref={track} className="content-rail h-scroll" tabIndex={0} aria-label={`${title} titles`} aria-busy={loading}>
