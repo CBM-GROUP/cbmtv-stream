@@ -50,6 +50,13 @@ export const API_Routes = {
   deleteChannel: "/api/channels/{{channel_id}}/",
   listChannelContents: "/api/channels/{{channel_id}}/contents/",
 
+  /* The signed-in viewer's existing library endpoints. */
+  savedItems: "/api/library/saved/",
+  savedIds: "/api/library/saved/ids/",
+  savedItem: "/api/library/saved/{{content_id}}/",
+  watchProgress: "/api/library/progress/",
+  watchProgressItem: "/api/library/progress/{{content_id}}/",
+
   /* Adverts */
   createAd: "/api/content/adverts/",
   listAds: "/api/content/adverts/",

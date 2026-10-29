@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { LibraryPage } from "@/components/LibraryPage";
 
 export default function SavedRedirect() {
-  redirect("/programs");
+  return <LibraryPage kind="saved" />;
 }

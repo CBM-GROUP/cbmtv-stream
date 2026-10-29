@@ -6,11 +6,12 @@ import { normalizeListResponse } from "@/lib/normalizeListResponse";
 import { newestEligible } from "@/lib/catalogue";
 
 // Home requests one page per category, never the entire catalogue.
-export async function listContentPreview(content_type?: ContentType, signal?: AbortSignal, featured = false) {
+export async function listContentPreview(content_type?: ContentType, signal?: AbortSignal, featured = false, channel?: number) {
   const params = new URLSearchParams({ page_size: "12" });
   if (content_type) params.set("content_type", content_type);
   if (featured) params.set("featured", "true");
-  const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal });
+  if (channel) params.set("channel", String(channel));
+  const { data } = await publicApiClient.get<ListResponse<Program>>(`${API_Routes.listContent}?${params}`, { signal, ...(channel ? { timeout: 15000 } : {}) });
   return newestEligible(normalizeListResponse<Program>(data));
 }
 
@@ -71,6 +72,7 @@ export const listContentBy = (
 export const getContentById = (id: string | number) =>
   publicApiClient.get<Program>(
     buildPath(API_Routes.getContentById, { content_id: id }),
+    { timeout: 15000 },
   );
 
 export const createContent = (data: CreateContentData) =>

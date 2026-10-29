@@ -1,567 +1,178 @@
 "use client";
 
-import SeasonsAccordion from "@/components/SeasonsAccordion";
-import { SafeImage } from "@/components/SafeImage";
-import { Button } from "@/components/ui/button";
-import { useContent } from "@/hooks/useContent";
-import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
-import type { Episode, MiniSeries, Program, Season } from "@/types";
-import { ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ProgramCard } from "./ProgramCard";
-import { TrackedVideo } from "./TrackedVideo";
-import { TrackedYouTube } from "./TrackedYouTube";
+import { Play, Share2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useProgressRecorder, useWatchProgress } from "@/hooks/useLibrary";
+import { initialPlayback, playbackTransition, type PlaybackFlow } from "@/lib/playback-flow";
+import { contentCategory, episodePart, formatDuration, matchingProgress, mediaSource, miniPart, orderedEpisodes, orderedMiniParts, orderedSeasons, resumePosition, type Part, type PartSelector } from "@/lib/viewing";
+import { playbackDestination } from "@/lib/auth-return";
+import { getEpisode, getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
+import { listContentPreview } from "@/services/content";
+import { getChannelById } from "@/services/channels";
+import type { Program } from "@/types";
+import { ContentRail } from "./ContentRail";
+import { MyListButton } from "./MyListButton";
 import { PlayerOptions } from "./PlayerOptions";
-import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
+import { SafeImage } from "./SafeImage";
+import SeasonsAccordion from "./SeasonsAccordion";
+import { TrackedVideo, type MediaControls } from "./TrackedVideo";
+import { TrackedYouTube } from "./TrackedYouTube";
 
-type Props = {
-  program: Program;
-};
-
-type PlayerMode = "theater" | "standard";
-
-type PlayablePart = {
-  key: string;
-  title: string;
-  url: string;
-  episode?: number;
-  miniseries?: number;
-};
-
+type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => Promise<void> | void };
+type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type Props = { program: Program; requested?: PartSelector & { invalid?: boolean } };
 const PLAYER_MODE_KEY = "cbmtv:player-mode-v2";
+const episodeQuery = (id: number) => ({ queryKey: ["viewing-episodes", id], queryFn: ({ signal }: { signal: AbortSignal }) => getSeasonEpisodes(id, signal).then(orderedEpisodes), staleTime: 60000, retry: 1 });
 
-/**
- * Vendor-prefixed fullscreen, still needed for Safari (including iPadOS).
- * Typed locally rather than widening the global lib types.
- */
-type FullscreenElement = HTMLElement & {
-  webkitRequestFullscreen?: () => Promise<void> | void;
-};
-type FullscreenDocument = Document & {
-  webkitFullscreenElement?: Element | null;
-  webkitExitFullscreen?: () => Promise<void> | void;
-};
+export default function ProgramDetail({ program, requested }: Props) {
+  const { user, loading: authLoading } = useAuth(), history = useWatchProgress(), client = useQueryClient();
+  const [playback, setPlayback] = useState<PlaybackFlow | null>(null);
+  const [currentPart, setCurrentPart] = useState<Part | null>(null), [selectedSeason, setSelectedSeason] = useState(0);
+  const [nextPart, setNextPart] = useState<Part | null>(null), [secondsLeft, setSecondsLeft] = useState(30);
+  const [setupError, setSetupError] = useState(""), [setupAttempt, setSetupAttempt] = useState(0), [withoutHistory, setWithoutHistory] = useState(false);
+  const [notice, setNotice] = useState(""), [expanded, setExpanded] = useState(false);
+  const [playerMode, setPlayerMode] = useState<"standard" | "theater">("standard"), [fullscreen, setFullscreen] = useState(false), [playing, setPlaying] = useState(false);
+  const playerRef = useRef<HTMLDivElement>(null), controls = useRef<MediaControls | null>(null), initialized = useRef(false), nextRequest = useRef(0), mainPosition = useRef(0), initializedOwner = useRef<number | null>(null);
+  const eligibleSeasons = !["movie", "music", "miniseries"].includes(program.content_type);
+  const seasons = useQuery({ queryKey: ["viewing-seasons", program.id], queryFn: ({ signal }) => getSeriesSeasons(program.id, signal).then((items) => orderedSeasons(items.filter((s) => s.content === program.id))), enabled: eligibleSeasons, staleTime: 60000, retry: 1 });
+  const parts = useQuery({ queryKey: ["viewing-parts", program.id], queryFn: ({ signal }) => getMiniSeriesParts(program.id, signal).then((items) => orderedMiniParts(items.filter((p) => p.content === program.id))), enabled: program.content_type === "miniseries", staleTime: 60000, retry: 1 });
+  const episodes = useQuery({ ...episodeQuery(selectedSeason), enabled: selectedSeason > 0 });
+  const related = useQuery({ queryKey: ["viewing-related", program.channel], queryFn: ({ signal }) => listContentPreview(undefined, signal, false, program.channel), enabled: Boolean(program.channel), staleTime: 60000, retry: 1 });
+  const channel = useQuery({ queryKey: ["channel", String(program.channel)], queryFn: () => getChannelById(program.channel).then((r) => r.data), enabled: Boolean(program.channel), staleTime: 60000, retry: 1 });
+  const recorder = useProgressRecorder(program.id, currentPart, Boolean(user && playback?.kind === "main" && !withoutHistory && initialized.current && user.id === initializedOwner.current));
+  const trailer = mediaSource(program.trailer_link)?.url ?? null;
+  const episodic = Boolean(seasons.data?.length || parts.data?.length);
+  const main = currentPart?.url ?? (episodic ? null : mediaSource(program.streaming_link)?.url ?? null);
+  const source = mediaSource(playback?.url);
+  const historyFailed = Boolean(user && history.isError && !withoutHistory && !initialized.current);
 
-function getUrlType(url: string): "youtube" | "direct" | null {
-  if (!url) return null;
-  try {
-    const urlObject = new URL(url);
-    if (
-      urlObject.hostname.includes("youtube.com") ||
-      urlObject.hostname.includes("youtu.be")
-    ) {
-      return "youtube";
-    }
-    return urlObject.protocol === "http:" || urlObject.protocol === "https:"
-      ? "direct"
-      : null;
-  } catch (error) {
-    console.error("Error getting URL type:", error);
-    return null;
-  }
-}
-
-function getYouTubeVideoId(url: string): string | null {
-  if (!url) return null;
-  try {
-    const urlObject = new URL(url);
-    if (urlObject.hostname.includes("youtube.com")) {
-      return urlObject.searchParams.get("v");
-    }
-    if (urlObject.hostname.includes("youtu.be")) {
-      return urlObject.pathname.substring(1);
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting YouTube video ID:", error);
-    return null;
-  }
-}
-
-export default function ProgramDetail({ program }: Props) {
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
-  const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
-  const [currentPart, setCurrentPart] = useState<PlayablePart | null>(null);
-  const [nextPart, setNextPart] = useState<PlayablePart | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(30);
-  const [playback, dispatchPlayback] = useState(() => initialPlayback(program.trailer_link, program.streaming_link));
-  const playbackEnded = playback.phase === "ended";
-  const playbackType = playback.phase === "trailer" ? "ad" : "streaming";
-  const playbackSession = playback.session;
-  const currentVideoUrl = playback.url;
-  const openedProgram = useRef({ id: program.id, trailer: program.trailer_link, main: program.streaming_link });
-  // Content.trailer_link and .streaming_link are both nullable on the API.
-  const [isCopied, setIsCopied] = useState(false);
-  const videoPlayerRef = useRef<HTMLDivElement>(null);
-
-  // Use the same default on the server and first client render. Restore a
-  // returning viewer's preference after mount to avoid a hydration mismatch.
-  const [playerMode, setPlayerMode] = useState<PlayerMode>("standard");
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  const { data: channelContent } = useContent();
-
-  const handleShare = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(
-      () => {
-        setIsCopied(true);
-        setTimeout(() => {
-          setIsCopied(false);
-        }, 2000); // Reset after 2 seconds
-      },
-      (err) => {
-        console.error("Could not copy text: ", err);
-      }
-    );
-  };
-
+  // Choose a source once, after authentication and saved progress are known.
+  // Later cache updates must never seek or restart an active player.
   useEffect(() => {
+    if (initialized.current || authLoading || (user && !withoutHistory && (history.isPending || history.isFetching || history.isError))) return;
+    if ((eligibleSeasons && seasons.isPending) || (program.content_type === "miniseries" && parts.isPending)) return;
     let cancelled = false;
-    setSeasons([]);
-    setEpisodesBySeason({});
-    setMiniParts([]);
-    setCurrentPart(null);
-    setNextPart(null);
-
-    if (program.content_type === "series") {
-      void getSeriesSeasons(program.id)
-        .then(async (loadedSeasons) => {
-          const ordered = [...loadedSeasons].sort((a, b) => a.season_number - b.season_number);
-          if (!cancelled) setSeasons(ordered);
-          const entries = await Promise.all(ordered.map(async (season) => {
-            const episodes = await getSeasonEpisodes(season.id).catch((error) => {
-              console.error(`Failed to load episodes for season ${season.id}`, error);
-              return [];
-            });
-            return [season.id, [...episodes].sort((a, b) => a.episode_number - b.episode_number)] as const;
-          }));
-          if (!cancelled) {
-            setEpisodesBySeason(Object.fromEntries(entries));
-          }
-        })
-        .catch((error) => { console.error("Failed to load series episodes", error); });
-    } else if (program.content_type === "miniseries") {
-      void getMiniSeriesParts(program.id)
-        .then((parts) => {
-          if (!cancelled) {
-            setMiniParts([...parts].sort((a, b) => a.miniseries_no - b.miniseries_no));
-          }
-        })
-        .catch((error) => { console.error("Failed to load miniseries parts", error); });
-    }
-    return () => { cancelled = true; };
-  }, [program.id, program.content_type]);
-
-  // Restore the stored display preference after mount. Reading localStorage
-  // during render would diverge from the server's markup.
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(PLAYER_MODE_KEY);
-      if (stored === "theater" || stored === "standard") {
-        setPlayerMode(stored);
-      }
-    } catch {
-      // Private mode, or storage disabled. Keep the default watch layout.
-    }
-  }, []);
-
-  const toggleMode = useCallback(() => {
-    setPlayerMode((current) => {
-      const next: PlayerMode = current === "theater" ? "standard" : "theater";
+    const prepare = async () => {
+      setSetupError("");
       try {
-        window.localStorage.setItem(PLAYER_MODE_KEY, next);
-      } catch {
-        // Preference simply will not persist; the toggle still works.
+        if (requested?.invalid) throw new Error("This episode link is invalid. Choose an available episode below.");
+        if ((eligibleSeasons && seasons.isError) || (program.content_type === "miniseries" && parts.isError)) throw new Error("The available seasons or parts couldn't be loaded. Please try again.");
+        const progress = withoutHistory ? undefined : history.data?.find((p) => p.content.id === program.id);
+        const explicit = Boolean(requested?.episode || requested?.miniseries);
+        const selector = explicit ? requested : resumePosition(progress) ? progress : undefined;
+        let target: Part | null = null;
+        if (selector?.episode) {
+          const episode = await client.fetchQuery({ queryKey: ["viewing-episode", selector.episode], queryFn: ({ signal }) => getEpisode(selector.episode as number, signal), staleTime: 60000, retry: 1 });
+          if (!seasons.data?.some((s) => s.id === episode.season)) throw new Error("This episode isn't available for this title. Choose an episode below.");
+          const available = await client.fetchQuery(episodeQuery(episode.season));
+          target = available.some((e) => e.id === episode.id) ? episodePart(episode) : null;
+          if (!target) throw new Error("This episode is currently unavailable. Choose another episode below.");
+        } else if (selector?.miniseries) {
+          const part = parts.data?.find((p) => p.id === selector.miniseries);
+          target = part ? miniPart(part) : null;
+          if (!target) throw new Error("This part is currently unavailable. Choose another part below.");
+        } else if (seasons.data?.length) {
+          for (const season of seasons.data) {
+            const available = await client.fetchQuery(episodeQuery(season.id));
+            target = available.map(episodePart).find((p) => p !== null) ?? null;
+            if (target) break;
+          }
+        } else if (parts.data?.length) target = parts.data.map(miniPart).find((p) => p !== null) ?? null;
+        if (cancelled || initialized.current) return;
+        initialized.current = true; initializedOwner.current = user?.id ?? null;
+        setCurrentPart(target);
+        if (target?.season) setSelectedSeason(target.season);
+        else if (seasons.data?.[0]) setSelectedSeason(seasons.data[0].id);
+        const resumeAt = matchingProgress(progress, target) ? resumePosition(progress) : 0; mainPosition.current = resumeAt;
+        const targetUrl = target?.url ?? (seasons.data?.length || parts.data?.length ? null : mediaSource(program.streaming_link)?.url ?? null);
+        setPlayback(initialPlayback(trailer, targetUrl, { resumeAt, skipTrailer: explicit || resumeAt > 0 }));
+      } catch (error) { if (!cancelled && !initialized.current) { setSetupError(error instanceof Error ? error.message : "Playback couldn't be prepared. Please try again."); if (seasons.data?.[0]) setSelectedSeason((s) => s || seasons.data[0].id); } }
+    };
+    void prepare();
+    return () => { cancelled = true; };
+  }, [authLoading, user, history.data, history.isPending, history.isFetching, history.isError, withoutHistory, eligibleSeasons, seasons.data, seasons.isPending, seasons.isError, parts.data, parts.isPending, parts.isError, program.id, program.content_type, program.streaming_link, requested, trailer, client, setupAttempt]);
+
+  useEffect(() => {
+    try { const stored = localStorage.getItem(PLAYER_MODE_KEY); if (stored === "theater" || stored === "standard") setPlayerMode(stored); } catch { /* Optional preference. */ }
+    const change = () => { const doc = document as FullscreenDocument; setFullscreen((doc.fullscreenElement ?? doc.webkitFullscreenElement) === playerRef.current); };
+    document.addEventListener("fullscreenchange", change); document.addEventListener("webkitfullscreenchange", change);
+    const cancelPendingNext = () => { nextRequest.current++; };
+    return () => { document.removeEventListener("fullscreenchange", change); document.removeEventListener("webkitfullscreenchange", change); cancelPendingNext(); };
+  }, []);
+  const toggleMode = () => setPlayerMode((mode) => { const next = mode === "standard" ? "theater" : "standard"; try { localStorage.setItem(PLAYER_MODE_KEY, next); } catch { /* Optional. */ } return next; });
+  const toggleFullscreen = () => {
+    const doc = document as FullscreenDocument, band = playerRef.current as FullscreenElement | null;
+    const request = doc.fullscreenElement || doc.webkitFullscreenElement ? doc.exitFullscreen?.bind(doc) ?? doc.webkitExitFullscreen?.bind(doc) : band?.requestFullscreen?.bind(band) ?? band?.webkitRequestFullscreen?.bind(band);
+    void Promise.resolve(request?.()).catch(() => setNotice("Fullscreen isn't available here. You can also use the video's fullscreen control."));
+  };
+  const receiveControls = useCallback((value: MediaControls | null) => { controls.current = value; }, []);
+  const playPart = useCallback((part: Part) => {
+    if (authLoading || (!initialized.current && user && !withoutHistory && (history.isPending || history.isFetching || history.isError))) { setNotice("Load your saved history, or choose Play without saving, before selecting an episode."); return; }
+    if (currentPart?.key === part.key && playback?.kind === "main" && playback.phase !== "ended") { nextRequest.current++; setNextPart(null); controls.current?.play(); return; }
+    nextRequest.current++; controls.current?.pause(); initialized.current = true; initializedOwner.current = user?.id ?? null;
+    setSetupError(""); mainPosition.current = 0; setCurrentPart(part); if (part.season) setSelectedSeason(part.season);
+    setPlayback((state) => state ? playbackTransition(state, { type: "playMain", url: part.url, force: true }) : initialPlayback(null, part.url));
+    setNextPart(null); setSecondsLeft(30);
+    window.history.replaceState(null, "", playbackDestination(program.id, part));
+    playerRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [program.id, authLoading, user, withoutHistory, history.isPending, history.isFetching, history.isError, currentPart, playback]);
+  const startMain = () => { setNextPart(null); setPlayback((state) => state ? playbackTransition(state, { type: "trailerFinished", main, resumeAt: mainPosition.current }) : state); };
+  const onEnded = async () => {
+    if (!playback) return;
+    if (playback.kind === "trailer") { startMain(); return; }
+    setPlayback((state) => state ? playbackTransition(state, { type: "ended" }) : state);
+    if (!currentPart) return;
+    const request = ++nextRequest.current;
+    try {
+      let upcoming: Part | undefined;
+      if (currentPart.miniseries) { const list = (parts.data ?? []).map(miniPart).filter((p): p is Part => p !== null); const index = list.findIndex((p) => p.key === currentPart.key); if (index >= 0) upcoming = list[index + 1]; }
+      else if (currentPart.season) {
+        const list = (await client.fetchQuery(episodeQuery(currentPart.season))).map(episodePart).filter((p): p is Part => p !== null);
+        const index = list.findIndex((p) => p.key === currentPart.key); if (index >= 0) upcoming = list[index + 1];
+        if (!upcoming) { const seasonIndex = seasons.data?.findIndex((s) => s.id === currentPart.season) ?? -1; if (seasonIndex >= 0) for (const season of (seasons.data ?? []).slice(seasonIndex + 1)) { upcoming = (await client.fetchQuery(episodeQuery(season.id))).map(episodePart).find((p) => p !== null) ?? undefined; if (upcoming) break; } }
       }
-      return next;
-    });
-  }, []);
+      if (request === nextRequest.current && upcoming) { setSecondsLeft(30); setNextPart(upcoming); }
+    } catch { if (request === nextRequest.current) setNotice("The next episode couldn't be loaded. Select an episode below to continue."); }
+  };
+  useEffect(() => { if (!nextPart) return; const timer = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000); return () => clearInterval(timer); }, [nextPart]);
+  useEffect(() => { if (nextPart && secondsLeft === 0) playPart(nextPart); }, [nextPart, secondsLeft, playPart]);
+  const share = async () => { try { if (navigator.share) await navigator.share({ title: program.title, url: location.href }); else { await navigator.clipboard.writeText(location.href); setNotice("Link copied."); } } catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setNotice("The link couldn't be shared. You can copy it from the address bar."); } };
+  const retrySetup = () => { if (eligibleSeasons) void seasons.refetch(); if (program.content_type === "miniseries") void parts.refetch(); setSetupAttempt((n) => n + 1); };
+  const relatedItems = (related.data ?? []).filter((item) => item.id !== program.id && item.channel === program.channel && item.status === "approved");
 
-  /*
-   * Fullscreen is tracked rather than assumed, because it can be left by routes
-   * this component never sees -- the Escape key, the browser's own chrome, or
-   * the <video> element's native control. Listening to the event is the only
-   * way the surrounding layout and the button's own icon stay truthful.
-   */
-  useEffect(() => {
-    const onChange = () => {
-      const doc = document as FullscreenDocument;
-      const active = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
-      setIsFullscreen(active === videoPlayerRef.current);
-    };
-    document.addEventListener("fullscreenchange", onChange);
-    document.addEventListener("webkitfullscreenchange", onChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", onChange);
-      document.removeEventListener("webkitfullscreenchange", onChange);
-    };
-  }, []);
-
-  const toggleFullscreen = useCallback(() => {
-    const doc = document as FullscreenDocument;
-    const band = videoPlayerRef.current as FullscreenElement | null;
-    if (!band) return;
-
-    const active = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
-
-    // Requesting on the band rather than the media element means the YouTube
-    // iframe and the native <video> behave identically, and the black backdrop
-    // comes along so the frame stays centred and 16:9.
-    if (active) {
-      void (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
-    } else {
-      const request = band.requestFullscreen?.bind(band) ??
-        band.webkitRequestFullscreen?.bind(band);
-      // Rejects when the gesture is not trusted or the API is blocked by
-      // policy. The native <video> control remains as a fallback.
-      void Promise.resolve(request?.()).catch(() => {});
-    }
-  }, []);
-
-  useEffect(() => {
-    if (openedProgram.current.id === program.id &&
-        openedProgram.current.trailer === program.trailer_link &&
-        openedProgram.current.main === program.streaming_link) return;
-    openedProgram.current = { id: program.id, trailer: program.trailer_link, main: program.streaming_link };
-    dispatchPlayback((state) => playbackTransition(state, {
-      type: "open", trailer: program.trailer_link, main: program.streaming_link,
-    }));
-  }, [program.id, program.trailer_link, program.streaming_link]);
-
-  const startMain = useCallback(() => {
-    dispatchPlayback((state) => playbackTransition(state, { type: "trailerFinished", main: program.streaming_link }));
-  }, [program.streaming_link]);
-
-  /*
-   * Scroll the player into view when the viewer switches what is playing --
-   * picking an episode, switching to the trailer, hitting "Watch now".
-   *
-   * Not on the first pass, though. This effect also ran on mount, which yanked
-   * a freshly opened page downward before the reader had done anything; the
-   * player is already the top of the page there, so the scroll was pure motion.
-   */
-  const hasPlayedOnce = useRef(false);
-  useEffect(() => {
-    if (!hasPlayedOnce.current) {
-      hasPlayedOnce.current = true;
-      return;
-    }
-    videoPlayerRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, [currentVideoUrl]);
-
-  const urlType = currentVideoUrl ? getUrlType(currentVideoUrl) : null;
-  const youtubeId =
-    urlType === "youtube" && currentVideoUrl
-      ? getYouTubeVideoId(currentVideoUrl)
-      : null;
-
-  const channelPrograms = useMemo(() => {
-    if (!channelContent) return [];
-    const genre = program.genre?.trim().toLowerCase();
-    return channelContent
-      .filter((item) => item.id !== program.id &&
-        (item.content_type === program.content_type || (genre && item.genre?.trim().toLowerCase() === genre)))
-      .sort((a, b) => {
-        const aGenreMatch = Number(Boolean(genre && a.genre?.trim().toLowerCase() === genre));
-        const bGenreMatch = Number(Boolean(genre && b.genre?.trim().toLowerCase() === genre));
-        return bGenreMatch - aGenreMatch;
-      })
-      .slice(0, 12);
-  }, [channelContent, program.id, program.genre, program.content_type]);
-
-  const orderedParts = useMemo<PlayablePart[]>(() => {
-    if (program.content_type === "series") {
-      return seasons.flatMap((season) => (episodesBySeason[season.id] ?? [])
-        .filter((episode) => Boolean(episode.streaming_link))
-        .map((episode) => ({
-          key: `episode:${episode.id}`,
-          title: episode.title,
-          url: episode.streaming_link as string,
-          episode: episode.id,
-        })));
-    }
-    if (program.content_type === "miniseries") {
-      return miniParts
-        .filter((part) => Boolean(part.streaming_link))
-        .map((part) => ({
-          key: `part:${part.id}`,
-          title: part.title,
-          url: part.streaming_link as string,
-          miniseries: part.id,
-        }));
-    }
-    return [];
-  }, [program.content_type, seasons, episodesBySeason, miniParts]);
-
-  const playPart = useCallback((part: PlayablePart) => {
-    setCurrentPart(part);
-    dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: part.url }));
-    setNextPart(null);
-    setSecondsLeft(30);
-  }, []);
-
-  const handlePlaybackEnded = useCallback(() => {
-    if (playbackType === "ad") {
-      startMain();
-      return;
-    }
-    dispatchPlayback((state) => playbackTransition(state, { type: "ended" }));
-    if (playbackType !== "streaming" || !currentPart) return;
-    const index = orderedParts.findIndex((part) => part.key === currentPart.key);
-    if (index >= 0 && index + 1 < orderedParts.length) {
-      setSecondsLeft(30);
-      setNextPart(orderedParts[index + 1]);
-    }
-  }, [playbackType, currentPart, orderedParts, startMain]);
-
-  useEffect(() => {
-    if (!nextPart) return;
-    const timer = window.setInterval(() => setSecondsLeft((seconds) => Math.max(0, seconds - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [nextPart]);
-
-  useEffect(() => {
-    if (nextPart && secondsLeft === 0) playPart(nextPart);
-  }, [nextPart, secondsLeft, playPart]);
-
-  return (
-    <>
-      <div className="watch-layout" data-player-mode={playerMode}>
-      <div
-        ref={videoPlayerRef}
-        className="player-band group relative min-w-0 w-full bg-black"
-        onPlayingCapture={() => setIsPlaying(true)}
-        onPauseCapture={() => setIsPlaying(false)}
-        onEndedCapture={() => setIsPlaying(false)}
-      >
-        <div className="player-frame">
-          {playbackType === "ad" && Boolean(program.streaming_link) && (
-            <button
-              onClick={startMain}
-              className="absolute bottom-4 right-0 bg-white/10 z-10 px-10 py-2 cursor-pointer hover:bg-white/20 rounded-l-md"
-            >
-              Skip
-            </button>
-          )}
-          {urlType === "youtube" && youtubeId && (
-            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
-          )}
-          {urlType === "direct" && (
-            <TrackedVideo
-              key={`${currentVideoUrl}:${playbackSession}`}
-              src={currentVideoUrl as string}
-              onEnded={handlePlaybackEnded}
-              onPlay={() => {
-                if (!nextPart) dispatchPlayback((state) => playbackTransition(state, { type: "playing" }));
-              }}
-            />
-          )}
-          {!urlType && (
-            <div className="flex h-full items-center justify-center px-4 text-center text-sm text-white/70" role="status">
-              {currentVideoUrl ? "This video link is unsupported." : "Video is unavailable."}
-            </div>
-          )}
-
-          {nextPart && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 p-4">
-              <div role="dialog" aria-label="Next episode" className="max-h-full w-full max-w-md overflow-y-auto rounded-xl border border-white/20 bg-neutral-950 p-6 text-center shadow-xl">
-                <p className="text-sm font-semibold uppercase tracking-wide text-teal-400">Up next</p>
-                <h2 className="mt-2 text-xl font-bold text-white">{nextPart.title}</h2>
-                <p className="mt-3 text-sm text-white/70">Starting in {secondsLeft} seconds</p>
-                <div className="mt-6 flex justify-center gap-3">
-                  <Button onClick={() => playPart(nextPart)} className="bg-teal-500 text-black hover:bg-teal-400">Watch next</Button>
-                  <Button onClick={() => setNextPart(null)} className="border border-white/30 bg-transparent text-white hover:bg-white/10">Cancel</Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <PlayerOptions playerRef={videoPlayerRef} playing={isPlaying && !playbackEnded && !nextPart} cinema={playerMode === "theater"} fullscreen={isFullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} />
+  return <>
+    <div className="watch-layout" data-player-mode={playerMode}>
+      <div className="min-w-0">
+        <div ref={playerRef} className="player-band group relative w-full min-w-0 bg-black"><div className="player-frame">
+          {source?.kind === "direct" && playback && <TrackedVideo src={source.url} session={playback.session} resumeAt={playback.resumeAt} poster={program.thumbnail} title={currentPart?.title || program.title} onEnded={() => { void onEnded(); }} onFailure={playback.kind === "trailer" && main ? () => { setNotice("The trailer couldn't be loaded. Starting the main video."); startMain(); } : undefined} onPlaybackChange={setPlaying} onPlay={() => setPlayback((state) => state ? playbackTransition(state, { type: "playing" }) : state)} onSample={(position, duration, urgent, ended) => { if (playback.kind === "main") { mainPosition.current = ended ? 0 : position; recorder.sample(position, duration, urgent, ended); } }} onControls={receiveControls} />}
+          {source?.kind === "youtube" && source.videoId && playback && <TrackedYouTube videoId={source.videoId} session={playback.session} resumeAt={playback.resumeAt} onEnded={() => { void onEnded(); }} onFailure={playback.kind === "trailer" && main ? startMain : undefined} onPlaybackChange={setPlaying} onSample={(position, duration, urgent, ended) => { if (playback.kind === "main") { mainPosition.current = ended ? 0 : position; recorder.sample(position, duration, urgent, ended); } }} onControls={receiveControls} />}
+          {!source && <div className="absolute inset-0 flex items-center justify-center p-5 text-center text-sm" role="status">{program.thumbnail && <SafeImage src={program.thumbnail} alt="" fill className="object-contain opacity-20" sizes="(min-width: 1200px) 64vw, 92vw" />}<div className="relative max-w-sm rounded-lg bg-black/75 p-4">{historyFailed ? <><p>Your saved position couldn&apos;t be loaded.</p><div className="mt-3 flex flex-wrap justify-center gap-3"><button className="detail-secondary-action" onClick={() => { void history.refetch(); }}>Retry history</button><button className="detail-secondary-action" onClick={() => setWithoutHistory(true)}>Play without saving</button></div></> : setupError ? <><p>{setupError}</p><button className="detail-secondary-action mt-3" onClick={retrySetup}>Try again</button></> : playback ? "Video is currently unavailable." : "Preparing playback..."}</div></div>}
+          {nextPart && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/85 p-3"><div role="dialog" aria-label="Next episode" className="max-h-full max-w-sm overflow-y-auto rounded-lg bg-neutral-950 p-4 text-center"><p className="text-xs text-teal-300">UP NEXT</p><h2 className="mt-2 font-semibold">{nextPart.title}</h2><p className="mt-2 text-sm text-white/65">Starting in {secondsLeft} seconds</p><div className="mt-4 flex justify-center gap-3"><button className="primary-action" onClick={() => playPart(nextPart)}>Watch next</button><button className="detail-secondary-action" onClick={() => { nextRequest.current++; setNextPart(null); }}>Cancel</button></div></div></div>}
+          <PlayerOptions playerRef={playerRef} playing={playing && playback?.phase !== "ended" && !nextPart} cinema={playerMode === "theater"} fullscreen={fullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} onSkipTrailer={playback?.phase === "trailer" && main ? startMain : undefined} />
+        </div></div>
+        <div className="player-status-slot" data-reserved={Boolean(trailer || eligibleSeasons || program.content_type === "miniseries")} >
+        {playback?.kind === "trailer" && <div className="playback-status"><span>Trailer</span>{main && <button onClick={startMain} className="text-teal-300">Skip trailer</button>}</div>}
+        {currentPart && playback?.kind === "main" && <p className="playback-status" role="status">{currentPart.season ? `Season ${seasons.data?.find((s) => s.id === currentPart.season)?.season_number ?? ""} · Episode ${currentPart.number}` : `Part ${currentPart.number}`} — {currentPart.title}</p>}
+        {recorder.failed && <p className="playback-status" role="alert">Your position hasn&apos;t been saved. <button className="text-teal-300" onClick={recorder.retry}>Retry saving</button></p>}
+        {notice && <p className="playback-status" role="status">{notice}<button className="text-teal-300" aria-label="Dismiss message" onClick={() => setNotice("")}>Dismiss</button></p>}
         </div>
       </div>
-      <aside className="watch-sidebar" aria-label="Movie information">
-        <div className="flex items-start gap-4 border-b border-white/10 pb-6">
-          <SafeImage
-            src={program.thumbnail}
-            alt={`${program.title} poster`}
-            width={300}
-            height={450}
-            className="h-36 aspect-3/4 w-auto rounded-md object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-white">{program.title}</h1>
-            <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
-            <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
-          </div>
-        </div>
-        <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
-          {program.description}
-        </p>
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <Button
-            onClick={() => {
-              dispatchPlayback((state) => playbackTransition(state, { type: "playMain", url: program.streaming_link }));
-              setCurrentPart(null);
-              setNextPart(null);
-            }}
-            disabled={!program.streaming_link || (currentVideoUrl === program.streaming_link && playbackType === "streaming" && !playbackEnded)}
-            className="h-11 w-full rounded-lg bg-gradient-to-tr from-chart-4/60 to-chart-5/60 text-black uppercase cursor-pointer"
-          >
-            Watch now
-          </Button>
-          {program.trailer_link && (
-            <Button
-              onClick={() => {
-                dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
-                setCurrentPart(null);
-                setNextPart(null);
-              }}
-              disabled={playbackType === "ad" && !playbackEnded}
-              className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
-            >
-              Watch trailer
-            </Button>
-          )}
-          <Button
-            onClick={handleShare}
-            className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
-          >
-            {isCopied ? "Copied!" : "Share"}
-          </Button>
-        </div>
+      <aside className="watch-sidebar" aria-label="Content information">
+        <div className="flex items-start gap-4"><SafeImage src={program.thumbnail} alt={`${program.title} poster`} width={160} height={240} className="detail-poster" /><div className="min-w-0"><p className="text-xs font-medium text-teal-300">{contentCategory(program.content_type)}</p><h1 className="mt-2 text-2xl leading-tight font-bold text-white">{program.title}</h1><p className="mt-3 text-sm leading-6 text-white/65">{[program.genre?.trim(), formatDuration(program.duration), program.country?.trim()].filter(Boolean).join(" · ")}</p></div></div>
+        <div className="detail-actions"><button className="primary-action disabled:opacity-50" disabled={!main || !playback} onClick={() => { nextRequest.current++; setNextPart(null); if (playback?.kind === "main" && playback.phase !== "ended") controls.current?.play(); else setPlayback((state) => state ? playbackTransition(state, { type: "playMain", url: main, resumeAt: playback?.phase === "ended" ? 0 : mainPosition.current }) : state); }}><Play size={17} />{playback?.kind === "main" && playing ? "Playing" : playback?.phase === "ended" ? "Watch again" : playback?.kind === "main" && playback.resumeAt > 0 ? "Continue watching" : "Watch now"}</button>{trailer && <button className="detail-secondary-action" disabled={!playback || playback.phase === "trailer"} onClick={() => { nextRequest.current++; controls.current?.pause(); setNextPart(null); setPlayback((state) => state ? playbackTransition(state, { type: "playTrailer", url: trailer }) : state); }}>Watch trailer</button>}<MyListButton content={program.id} /><button className="detail-secondary-action" onClick={() => { void share(); }}><Share2 size={17} />Share</button></div>
+        {program.description?.trim() && <div className="mt-5"><h2 className="text-sm font-semibold text-white/90">Synopsis</h2><p className={`mt-2 text-sm leading-6 text-white/65 ${expanded ? "" : "line-clamp-5"}`}>{program.description}</p>{program.description.length > 240 && <button className="mt-1 min-h-11 text-sm text-teal-300" onClick={() => setExpanded(!expanded)}>{expanded ? "Read less" : "Read more"}</button>}</div>}
+        <dl className="detail-credits">{[["Director", program.director], ["Writer", program.writer]].filter(([, value]) => value?.trim()).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        {program.channel && <Link className="mt-4 inline-flex min-h-11 items-center text-sm text-teal-300" href={`/channels/${program.channel}`}>{channel.data?.name || "View channel"}</Link>}
       </aside>
-      </div>
-      {playbackEnded && !nextPart && (
-        <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
-          <span>{playbackType === "ad" ? "Trailer finished." : "Playback finished."}</span>
-          {channelPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
-          <Link href="/" className="text-teal-400 underline">Back to home</Link>
-        </div>
-      )}
-      {/*
-        Always rendered. This block used to be gated on
-        `playbackType != "streaming"`, so pressing "Watch now" deleted the
-        synopsis, cast, genre, poster, share button and the whole seasons
-        accordion -- collapsing the page to a player and an "Up next" grid at
-        the exact moment a viewer is most likely to want to know what they are
-        watching, and taking the episode list away mid-series.
-      */}
-      <div className="container mx-auto px-4 mt-14 pb-24">
-          <div className="max-w-4xl">
-            <div>
-              <h2 className="text-3xl font-bold mb-6 text-white/80">
-                Synopsis
-              </h2>
-              <p className="text-lg text-white/60 mb-10 leading-relaxed">
-                {program.description}
-              </p>
-
-              <h2 className="text-3xl font-bold mb-6 text-white/80">
-                Overview
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">
-                    Director
-                  </h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.director || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">
-                    Writer
-                  </h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.writer || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">Genre</h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.genre || "N/A"}
-                  </p>
-                </div>
-              </div>
-
-              {program.content_type === "series" && (
-                <div className="mt-10">
-                  <h2 className="text-3xl font-bold mb-6 text-white/80 line-clamp-2">
-                    Seasons
-                  </h2>
-                  <SeasonsAccordion
-                    seasons={seasons}
-                    episodesBySeason={episodesBySeason}
-                    onEpisodeSelect={(episode) => {
-                      if (episode.streaming_link) playPart({
-                        key: `episode:${episode.id}`,
-                        title: episode.title,
-                        url: episode.streaming_link,
-                        episode: episode.id,
-                      });
-                    }}
-                  />
-                </div>
-              )}
-              {program.content_type === "miniseries" && miniParts.length > 0 && (
-                <div className="mt-10">
-                  <h2 className="mb-6 text-3xl font-bold text-white/80">Parts</h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {miniParts.map((part) => (
-                      <button
-                        key={part.id}
-                        type="button"
-                        disabled={!part.streaming_link}
-                        onClick={() => {
-                          if (part.streaming_link) playPart({
-                            key: `part:${part.id}`,
-                            title: part.title,
-                            url: part.streaming_link,
-                            miniseries: part.id,
-                          });
-                        }}
-                        className="rounded-lg border border-white/10 p-4 text-left text-white/80 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {part.miniseries_no}. {part.title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-      </div>
-      {channelPrograms.length > 0 && (
-        <div id="similar-programs" className="w-full mx-auto p-5 lg:p-14 mb-24">
-          <div className="mb-8 flex items-center justify-between">
-            <h3 className="text-xl font-medium">Similar titles</h3>
-            <Link href="/programs" className="font-normal text-md flex items-center space-x-3">
-              <small>More</small>
-              <ChevronRight size={18} strokeWidth={1.5}/>
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
-            {channelPrograms.map((item, index) => (
-              <ProgramCard
-                key={index}
-                id={item.id}
-                title={item.title}
-                src={item.thumbnail}
-                alt={item.title}
-                slug={`programs/${item.id}`}
-                href={`/programs/${item.id}`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
+    </div>
+    {(Boolean(seasons.data?.length) || seasons.isError || Boolean(parts.data?.length) || parts.isError) && <section className="detail-episodes" aria-label="Episodes and parts"><h2 className="section-title mb-3">{program.content_type === "miniseries" ? "Parts" : "Seasons & episodes"}</h2>
+      {eligibleSeasons && (seasons.isError ? <button className="detail-secondary-action" onClick={retrySetup}>Retry seasons</button> : <SeasonsAccordion seasons={seasons.data ?? []} selectedSeason={selectedSeason || seasons.data?.[0]?.id || 0} episodesBySeason={{ [selectedSeason]: episodes.data ?? [] }} currentEpisode={currentPart?.episode} playing={playing && playback?.kind === "main"} loading={episodes.isPending} error={episodes.isError} onSeasonChange={setSelectedSeason} onEpisodeSelect={(episode) => { const part = episodePart(episode); if (part) playPart(part); }} onRetry={() => { void episodes.refetch(); }} />)}
+      {parts.isError && program.content_type === "miniseries" && <button className="detail-secondary-action" onClick={() => { void parts.refetch(); }}>Retry parts</button>}
+      {program.content_type === "miniseries" && <div className="episode-grid">{parts.data?.map((item) => { const part = miniPart(item), selected = currentPart?.miniseries === item.id; return <button className="episode-card p-4" key={item.id} disabled={!part} aria-pressed={selected} data-selected={selected} onClick={() => { if (part) playPart(part); }}><p className="text-xs text-teal-300">Part {item.miniseries_no}{selected ? playing && playback?.kind === "main" ? " · Now playing" : " · Selected" : ""}</p><h3 className="mt-2 text-sm font-semibold">{item.title}</h3>{item.duration && <p className="mt-2 text-xs text-white/60">{formatDuration(item.duration)}</p>}{!part && <p className="mt-2 text-xs">Not available</p>}</button>; })}</div>}
+    </section>}
+    <div className="detail-related"><ContentRail title="More from this channel" items={relatedItems} loading={related.isPending} error={related.isError} onRetry={() => { void related.refetch(); }} /></div>
+  </>;
 }
