@@ -1,64 +1,19 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
+import type { Channel } from "@/types";
 
-interface Props {
-  title: string;
-  id: string;
-  image: string;
-  isLive?: boolean;
-  viewersCount?: number;
-}
-
-export default function ChannelCard({ 
-  title, 
-  id, 
-  image, 
-  isLive = false, 
-  viewersCount = 0 
-}: Props) {
-  return (
-    <Link 
-      href={`/channels/${id}`}
-      className="block group rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-      aria-label={`Watch ${title} channel`}
-    >
-      <div className="relative aspect-video">
-        <SafeImage
-          src={image}
-          alt={`${title} channel thumbnail`}
-          fill
-          className="object-cover transition-opacity group-hover:opacity-90"
-          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-          priority={false}
-        />
-        
-        {/* Live badge */}
-        {isLive && (
-          <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-            </span>
-            LIVE
-          </div>
-        )}
-        
-        {/* Viewers count */}
-        {viewersCount > 0 && (
-          <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md">
-            {viewersCount.toLocaleString()} viewers
-          </div>
-        )}
+export default function ChannelCard({ channel }: { channel: Channel }) {
+  return <Link href={"/channels/" + channel.id} className="channel-directory-card group flex min-w-0 flex-col rounded-xl border border-white/5 bg-white/5 p-2 transition-colors hover:border-teal-300/30 hover:bg-white/10 sm:p-3">
+    <div className="relative aspect-square overflow-hidden rounded-lg bg-black/30">
+      <SafeImage src={channel.cover_image_url || channel.logo_url} alt="" fill className="object-contain transition-transform duration-300 motion-safe:group-hover:scale-[1.02]" sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 768px) 29vw, 44vw" />
+    </div>
+    <div className="flex flex-1 flex-col px-1 pb-1 pt-3">
+      <div className="flex items-start gap-2">
+        <h2 className="min-h-10 min-w-0 flex-1 text-sm font-semibold leading-5 text-white sm:text-base">{channel.name}</h2>
+        <ChevronRight size={16} className="mt-0.5 shrink-0 text-white/50 group-hover:text-teal-300" aria-hidden="true" />
       </div>
-      
-      <div className="bg-gradient-to-b from-gray-900 to-gray-800 p-4">
-        <h2 className="text-lg font-semibold text-white text-center truncate">
-          {title}
-        </h2>
-        {isLive && (
-          <p className="text-xs text-gray-400 text-center mt-1">Live Now</p>
-        )}
-      </div>
-    </Link>
-  );
+      {channel.description?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/60 sm:text-sm">{channel.description}</p>}
+    </div>
+  </Link>;
 }

@@ -41,3 +41,23 @@ export function selectNewReleases(items: Program[]): Program[] {
     return [chosen];
   });
 }
+
+/** Membership comes from /channels/{id}/contents/, including any shared rows. */
+export function buildChannelCatalogue(items: Program[]) {
+  const published = newestEligible(items);
+  const sections = ["original", "movie", "documentary", "animations"].flatMap((type) => {
+    const category = HOME_CATEGORIES.find((item) => item.type === type);
+    if (!category) return [];
+    const titles = published.filter((item) => category.types.includes(item.content_type));
+    return titles.length ? [{ type, title: category.title, items: titles }] : [];
+  });
+  const primaryTypes = HOME_CATEGORIES.flatMap((category) => category.types);
+  return {
+    published,
+    featured: published.filter((item) => item.is_featured === true),
+    sections,
+    recent: published.slice(0, 12),
+    // Preserve existing classifications outside the four primary categories.
+    other: published.filter((item) => !primaryTypes.includes(item.content_type)),
+  };
+}
