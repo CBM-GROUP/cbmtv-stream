@@ -433,6 +433,8 @@ body {
 .episode-card:not(:disabled):hover { background: rgba(255,255,255,.07); }
 .episode-card[data-selected="true"] { border-color: #2dd4bf; background: rgba(45,212,191,.07); }
 .detail-related { margin-block: 2rem; }
+.trends-page { padding-block: 1.5rem 3rem; min-height: 75vh; }
+.trends-unavailable { display: flex; flex-direction: column; align-items: center; margin-top: 1.5rem; padding: 3rem 1rem; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: rgba(255,255,255,.02); text-align: center; }
 .library-remove { position: absolute; top: .375rem; right: .375rem; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,.85); color: white; cursor: pointer; }
 @media (min-width: 640px) { .episode-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (min-width: 1024px) { .episode-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } .watch-layout[data-player-mode="standard"] { grid-template-columns: minmax(0,1fr) minmax(290px,28%); } }

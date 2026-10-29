@@ -7,7 +7,7 @@ const item = (id, content_type, channel, created_at, status = "approved") => ({
   id, content_type, channel, created_at, status, title: `Title ${id}`,
 });
 
-test("new releases choose one approved item per category, preferring another channel", () => {
+test("new releases select six recent approved additions without category or channel quotas", () => {
   const rows = [
     item(94, "original", 1, "2026-10-24"),
     item(93, "original", 8, "2026-10-18"),
@@ -21,8 +21,15 @@ test("new releases choose one approved item per category, preferring another cha
   ];
   assert.deepEqual(CATEGORIES.map(({ title }) => title), ["TV Shows", "Movies", "Series", "Animations", "Documentaries"]);
   assert.deepEqual(CATEGORIES.find(({ type }) => type === "series")?.types, ["series", "miniseries"]);
-  assert.deepEqual(selectNewReleases([...rows, rows[0]]).map((row) => row.id), [94, 89, 87, 84, 86]);
+  assert.deepEqual(selectNewReleases([...rows, rows[0]]).map((row) => row.id), [94, 84, 86, 88, 90, 89]);
   assert.deepEqual(newestEligible([item(2, "movie", 1, "2026-10-20"), item(3, "movie", 1, "2026-10-20")]).map((row) => row.id), [3, 2]);
+});
+
+test("new releases handle small catalogues and do not manufacture category variety", () => {
+  const rows = Array.from({ length: 8 }, (_, i) => item(i + 1, "movie", 1, `2026-10-${String(i + 1).padStart(2, "0")}`));
+  assert.deepEqual(selectNewReleases(rows).map((row) => row.id), [8, 7, 6, 5, 4, 3]);
+  assert.equal(selectNewReleases(rows.slice(0, 2)).length, 2);
+  assert.deepEqual(selectNewReleases([item(1, "movie", 1, "2026-10-30", "preview")]), []);
 });
 
 test("sign-in return keeps only a known internal playback route", () => {

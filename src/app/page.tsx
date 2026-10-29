@@ -45,7 +45,7 @@ export default function HomePage() {
           <span className="line-clamp-2 min-h-10 content-center font-medium">{channel.name}</span>
         </Link>)}</div>}
       </section>}
-      <ContentRail title="New Releases" items={releases} loading={loading && !releases.length} />
+      <div className="new-releases"><ContentRail title="New Releases" items={releases} loading={loading && !releases.length} error={categories.every((query) => query.isError)} onRetry={() => { categories.forEach((query) => { void query.refetch(); }); }} />{Boolean(releases.length) && <p className="content-section -mt-4 text-xs text-white/45">Recently added to CBM TV.</p>}</div>
       {categories.map((query, i) => <ContentRail key={HOME_CATEGORIES[i].type} title={HOME_CATEGORIES[i].title} items={query.data} loading={query.isPending} error={query.isError} onRetry={() => { void query.refetch(); }} />)}
       {!loading && !items.length && categories.every((query) => !query.isError) && <p className="content-section py-8 text-white/65" role="status">New titles are on the way. Explore our channels.</p>}
     </div>

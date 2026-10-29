@@ -15,6 +15,10 @@ export interface SearchResponse {
   count: number;
   hits: Program[];
   source: "meilisearch" | "database" | "none";
+  /** Optional until the backward-compatible backend pagination update ships. */
+  total?: number;
+  offset?: number;
+  next_offset?: number | null;
 }
 
 /**
@@ -35,11 +39,13 @@ export const searchContent = async (
   query: string,
   limit = 8,
   signal?: AbortSignal,
+  offset = 0,
 ): Promise<SearchResponse> => {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (offset > 0) params.set("offset", String(offset));
   const response = await publicApiClient.get<SearchResponse>(
     `${API_Routes.searchContent}?${params.toString()}`,
-    { signal },
+    { signal, timeout: 15000 },
   );
   return response.data;
 };

@@ -29,17 +29,12 @@ export function newestEligible(items: Program[]): Program[] {
   );
 }
 
-/** Select from bounded candidates supplied by the public category endpoint. */
+/** Recent catalogue additions, not theatrical releases or popularity rankings.
+ * created_at is the only available date; use ID as the deterministic tie-break.
+ * Candidates come from the homepage's bounded public category previews.
+ */
 export function selectNewReleases(items: Program[]): Program[] {
-  const ordered = newestEligible(items);
-  const usedChannels = new Set<number>();
-  return CATEGORIES.flatMap(({ types }) => {
-    const candidates = ordered.filter((item) => types.includes(item.content_type));
-    const chosen = candidates.find((item) => !usedChannels.has(item.channel)) ?? candidates[0];
-    if (!chosen) return [];
-    usedChannels.add(chosen.channel);
-    return [chosen];
-  });
+  return newestEligible(items).slice(0, 6);
 }
 
 /** Membership comes from /channels/{id}/contents/, including any shared rows. */

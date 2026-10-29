@@ -57,12 +57,13 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const { data, isPending, isError, isFetching } = useSearch(
+  const { data, isPending, isError, isFetching, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } = useSearch(
     debouncedTerm,
     MAX_RESULTS,
   );
 
   const results = data?.hits ?? [];
+  const loadMore = () => { if (hasNextPage && !isFetching && !isFetchingNextPage) void fetchNextPage({ cancelRefetch: false }); };
 
   // Three distinct states the dropdown has to tell apart:
   //   searching -- a term is typed but no settled result set exists yet, which
@@ -81,7 +82,8 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
   // data object update would unexpectedly clear their keyboard selection.
   useEffect(() => {
     setActiveIndex(-1);
-  }, [query, results.length]);
+  }, [query]);
+  useEffect(() => { if (activeIndex >= results.length) setActiveIndex(-1); }, [activeIndex, results.length]);
 
   // Close on outside click. More reliable than an onBlur timeout, which raced
   // with clicking a result.
@@ -192,7 +194,10 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
           )}
 
           {!isSearching && !isError && results.length > 0 && (
-            <ul className="search-result-list overflow-y-auto py-1">
+            <ul className="search-result-list overflow-y-auto py-1" onScroll={(event) => {
+              const list = event.currentTarget;
+              if (!isFetchNextPageError && list.scrollHeight - list.scrollTop - list.clientHeight < 64) loadMore();
+            }}>
               {results.map((hit, i) => (
                 <li key={hit.id} id={`${resultsId}-${i}`} role="option" aria-selected={i === activeIndex}>
                   <Link
@@ -232,6 +237,10 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
               ))}
             </ul>
           )}
+          {hasSettled && hasNextPage && <div className="border-t border-gray-100 px-4 py-2">
+            {isFetchNextPageError && <p role="alert" className="mb-1 text-sm text-red-600">More matches couldn&apos;t be loaded.</p>}
+            <button type="button" className="min-h-11 text-sm font-medium text-teal-700 disabled:opacity-60" disabled={isFetchingNextPage} onClick={loadMore}>{isFetchingNextPage ? "Loading more..." : isFetchNextPageError ? "Retry more results" : "Load more results"}</button>
+          </div>}
         </div>
       )}
 
