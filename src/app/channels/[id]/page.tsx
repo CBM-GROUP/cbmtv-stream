@@ -1,30 +1,14 @@
-import { getChannelById } from '@/services/channels';
-import type { Channel } from '@/types';
-import ChannelPageClient from './ChannelPageClient';
+import { isAxiosError } from "axios";
+import { notFound } from "next/navigation";
+import { getChannelById } from "@/services/channels";
+import ChannelPageClient from "./ChannelPageClient";
 
-type Props = {
-  // Next 16: params is a Promise. This route already awaits it correctly;
-  // the type just needs to say so.
-  params: Promise<{ id: string }>;
-};
-
-export default async function ChannelPage({ params }: Props) {
+export default async function ChannelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-
-  let channel: Channel | null = null;
-  try {
-    const response = await getChannelById(id);
-    channel = response.data;
-    console.log('Fetched channel data:', channel);
-  } catch (error) {
-    console.error('Error fetching channel:', error);
-    
-    return <div>Channel not found</div>;
-  }
-
-  if (!channel) {
-    return <div>Loading...</div>;
-  }
-
+  if (!/^[1-9]\d*$/.test(id)) notFound();
+  const channel = await getChannelById(id).then((response) => response.data).catch((error: unknown) => {
+    if (isAxiosError(error) && error.response?.status === 404) notFound();
+    throw error;
+  });
   return <ChannelPageClient channel={channel} />;
 }

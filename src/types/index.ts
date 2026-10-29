@@ -104,6 +104,8 @@ export interface Program {
   status: ContentStatus | null;
   /** Foreign key id, not an embedded object. */
   channel: number;
+  /** Editorial flag supplied by the public ContentSerializer. */
+  is_featured?: boolean;
   created_at: string;
 }
 

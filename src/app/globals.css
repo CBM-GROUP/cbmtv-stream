@@ -416,6 +416,15 @@ body {
 
 .channel-rail { scrollbar-width: none; }
 .channel-rail::-webkit-scrollbar { display: none; }
+.channel-directory-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.channel-directory-card h2, .channel-title { overflow-wrap: anywhere; }
+.channel-empty-state { padding: clamp(1.5rem, 4vw, 3rem) 1rem; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: rgba(255,255,255,.025); text-align: center; }
+.channel-hero { min-height: 220px; background: linear-gradient(120deg, #10201e, #101010 65%); }
+.channel-hero-inner { padding: 1rem var(--page-gutter); }
+@media (min-width: 768px) { .channel-hero-inner { padding-block: 1.5rem; } }
+@media (min-width: 768px) { .channel-directory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; } .channel-hero { min-height: 280px; } }
+@media (min-width: 1024px) { .channel-directory-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .channel-directory-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .channel-card { width: calc((100% - 1.5rem) / 2.25); }
 @media (min-width: 640px) { .channel-card { width: calc((100% - 2rem) / 3); } }
 @media (min-width: 1024px) { .channel-card { width: calc((100% - 3rem) / 4); } }
