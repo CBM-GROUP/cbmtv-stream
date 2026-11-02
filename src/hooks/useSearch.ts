@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { searchContent, type SearchResponse } from "@/services/search";
+import { searchContent, type SearchMode, type SearchResponse } from "@/services/search";
 
 /**
  * Debounced catalogue search.
@@ -11,12 +11,12 @@ import { searchContent, type SearchResponse } from "@/services/search";
  * instead of firing a round trip that the API would answer with an empty list
  * anyway.
  */
-export function useSearch(query: string, limit = 8) {
+export function useSearch(query: string, limit = 8, searchBy: SearchMode = "title", offset = 0) {
   const term = query.trim();
 
   return useQuery<SearchResponse>({
-    queryKey: ["search", term, limit],
-    queryFn: ({ signal }) => searchContent(term, limit, signal),
+    queryKey: ["search", term, searchBy, limit, offset],
+    queryFn: ({ signal }) => searchContent(term, limit, signal, searchBy, offset),
     enabled: term.length > 0,
     // Results for a given term rarely change within a session, and the same
     // term is re-typed constantly while backspacing.

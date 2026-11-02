@@ -98,6 +98,8 @@ export interface Program {
   size: string | null;
   duration: DurationString | null;
   director: string | null;
+  /** Credited performers; available after the search metadata backend release. */
+  cast?: string[];
   writer: string | null;
   genre: string | null;
   country: string | null;

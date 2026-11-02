@@ -12,10 +12,25 @@ import type { Program } from "@/types";
  */
 export interface SearchResponse {
   query: string;
+  search_by: SearchMode;
   count: number;
   hits: Program[];
   source: "meilisearch" | "database" | "none";
+  total: number;
+  offset: number;
+  next_offset: number | null;
 }
+
+export type SearchMode = "title" | "everything" | "director" | "genre" | "cast" | "channel";
+
+export const SEARCH_MODES: { value: SearchMode; label: string }[] = [
+  { value: "title", label: "Title" },
+  { value: "everything", label: "Everything" },
+  { value: "director", label: "Director" },
+  { value: "genre", label: "Genre" },
+  { value: "cast", label: "Actor / Cast" },
+  { value: "channel", label: "Channel" },
+];
 
 /**
  * Search the catalogue through the Django API.
@@ -35,8 +50,10 @@ export const searchContent = async (
   query: string,
   limit = 8,
   signal?: AbortSignal,
+  searchBy: SearchMode = "title",
+  offset = 0,
 ): Promise<SearchResponse> => {
-  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const params = new URLSearchParams({ q: query, limit: String(limit), search_by: searchBy, offset: String(offset) });
   const response = await publicApiClient.get<SearchResponse>(
     `${API_Routes.searchContent}?${params.toString()}`,
     { signal },
