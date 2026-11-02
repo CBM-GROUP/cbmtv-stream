@@ -103,6 +103,13 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
   const isOpen = showDropdown && Boolean(query);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && query) {
+      event.preventDefault();
+      setShowDropdown(false);
+      onNavigate?.();
+      router.push(`/search?q=${encodeURIComponent(query)}&search_by=title`);
+      return;
+    }
     if (event.key === "Escape") {
       setShowDropdown(false);
       return;
@@ -115,16 +122,6 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((i) => (i <= 0 ? results.length - 1 : i - 1));
-    } else if (event.key === "Enter" && activeIndex >= 0) {
-      const hit = results[activeIndex];
-      if (hit) {
-        event.preventDefault();
-        setShowDropdown(false);
-        onNavigate?.();
-        // router.push, not window.location.href: a full document reload threw
-        // away the React tree and replayed the 3s Preloader on every result.
-        router.push(`/programs/${hit.id}`);
-      }
     }
   };
 
@@ -135,8 +132,8 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search titles or genres"
-          aria-label="Search titles or genres"
+          placeholder="Search titles"
+          aria-label="Search titles"
           className="absolute top-0 left-0 h-full w-full rounded-md bg-transparent pl-12 pr-10 text-base text-white placeholder:text-white/50"
           value={searchTerm}
           onChange={(e) => {
