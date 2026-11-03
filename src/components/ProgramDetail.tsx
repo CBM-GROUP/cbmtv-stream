@@ -14,9 +14,13 @@ import { TrackedVideo } from "./TrackedVideo";
 import { TrackedYouTube } from "./TrackedYouTube";
 import { PlayerOptions } from "./PlayerOptions";
 import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
+import { useAuth } from '@/context/AuthContext';
+import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
+import { resumePosition } from '@/lib/homepage-progress';
 
 type Props = {
   program: Program;
+  intent?: { play: boolean; episode?: number; miniseries?: number };
 };
 
 type PlayerMode = "theater" | "standard";
@@ -79,7 +83,9 @@ function getYouTubeVideoId(url: string): string | null {
   }
 }
 
-export default function ProgramDetail({ program }: Props) {
+export default function ProgramDetail({ program, intent }: Props) {
+  const { user, loading: authLoading } = useAuth();
+  const { progress, ready: progressReady, error: progressError, retry: retryProgress, record } = usePlaybackProgress(user?.id, program.id);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, Episode[]>>({});
   const [miniParts, setMiniParts] = useState<MiniSeries[]>([]);
@@ -307,6 +313,25 @@ export default function ProgramDetail({ program }: Props) {
     setSecondsLeft(30);
   }, []);
 
+  const appliedIntent = useRef('');
+  useEffect(() => {
+    if (!intent?.play || authLoading || !progressReady) return;
+    const identity = `${user?.id ?? 'anonymous'}:${program.id}:${intent.episode ?? ''}:${intent.miniseries ?? ''}`;
+    if (appliedIntent.current === identity) return;
+    const part = orderedParts.find((candidate) => intent.episode ? candidate.episode === intent.episode : intent.miniseries ? candidate.miniseries === intent.miniseries : false);
+    if ((intent.episode || intent.miniseries) && !part) return;
+    if (!part && !program.streaming_link && !orderedParts[0]) return;
+    appliedIntent.current = identity;
+    if (part) playPart(part);
+    else if (program.streaming_link) dispatchPlayback((state) => playbackTransition(state, { type: 'playMain', url: program.streaming_link }));
+    else if (orderedParts[0]) playPart(orderedParts[0]);
+  }, [intent, user, authLoading, program.id, program.streaming_link, orderedParts, playPart, progressReady]);
+
+  const startSeconds = playbackType === 'streaming' ? resumePosition(progress, currentPart?.episode, currentPart?.miniseries) : 0;
+  const trackProgress = (position: number, duration: number, force = false) => {
+    if (playbackType === 'streaming' && user && progressReady) record(position, duration, currentPart?.episode, currentPart?.miniseries, force);
+  };
+
   const handlePlaybackEnded = useCallback(() => {
     if (playbackType === "ad") {
       startMain();
@@ -350,13 +375,16 @@ export default function ProgramDetail({ program }: Props) {
               Skip
             </button>
           )}
+          {playbackType === 'streaming' && (authLoading || (user && !progressReady)) ? <div className="flex h-full items-center justify-center text-white/75" role="status">{progressError ? <button className="primary-action" onClick={retryProgress}>Couldn&apos;t load saved progress. Try again</button> : 'Loading playback...'}</div> : <>
           {urlType === "youtube" && youtubeId && (
-            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}`} videoId={youtubeId} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
+            <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}:${user?.id ?? 'anonymous'}`} videoId={youtubeId} startSeconds={startSeconds} onProgress={trackProgress} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
           )}
           {urlType === "direct" && (
             <TrackedVideo
-              key={`${currentVideoUrl}:${playbackSession}`}
+              key={`${currentVideoUrl}:${playbackSession}:${user?.id ?? 'anonymous'}`}
               src={currentVideoUrl as string}
+              startSeconds={startSeconds}
+              onProgress={trackProgress}
               onEnded={handlePlaybackEnded}
               onPlay={() => {
                 if (!nextPart) dispatchPlayback((state) => playbackTransition(state, { type: "playing" }));
@@ -368,6 +396,7 @@ export default function ProgramDetail({ program }: Props) {
               {currentVideoUrl ? "This video link is unsupported." : "Video is unavailable."}
             </div>
           )}
+          </>}
 
           {nextPart && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 p-4">

@@ -88,6 +88,10 @@ export type UpdateChannelData = Partial<CreateChannelData>;
  * ------------------------------------------------------------------------ */
 
 export interface Program {
+  category?: 'movies' | 'tv_shows' | 'documentaries' | 'animations' | null;
+  format?: 'standalone' | 'series' | null;
+  first_published_at?: string | null;
+  backdrop?: string | null;
   id: number;
   title: string;
   description: string;
