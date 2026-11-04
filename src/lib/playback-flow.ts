@@ -13,7 +13,7 @@ export type PlaybackEvent =
   | { type: "playing" };
 
 export function initialPlayback(trailer: string | null, main: string | null): PlaybackFlow {
-  return { phase: main || !trailer ? "main" : "trailer", url: main || trailer, session: 0 };
+  return { phase: trailer ? "trailer" : "main", url: trailer || main, session: 0 };
 }
 
 export function playbackTransition(state: PlaybackFlow, event: PlaybackEvent): PlaybackFlow {

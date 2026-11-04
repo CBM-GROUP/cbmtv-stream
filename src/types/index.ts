@@ -88,6 +88,7 @@ export type UpdateChannelData = Partial<CreateChannelData>;
  * ------------------------------------------------------------------------ */
 
 export interface Program {
+  playback_available?: boolean;
   category?: 'movies' | 'tv_shows' | 'documentaries' | 'animations' | null;
   format?: 'standalone' | 'series' | null;
   first_published_at?: string | null;
@@ -161,6 +162,7 @@ export interface CreateSeasonData {
 export type UpdateSeasonData = Partial<CreateSeasonData>;
 
 export interface Episode {
+  playback_available?: boolean;
   id: number;
   season: number;
   title: string;
@@ -182,6 +184,7 @@ export interface CreateEpisodeData {
 export type UpdateEpisodeData = Partial<CreateEpisodeData>;
 
 export interface MiniSeries {
+  playback_available?: boolean;
   id: number;
   content: number;
   title: string;

@@ -59,6 +59,9 @@ importers:
       embla-carousel-react:
         specifier: ^8.6.0
         version: 8.6.0(react@18.2.0)
+      hls.js:
+        specifier: 1.6.15
+        version: 1.6.15
       jwt-decode:
         specifier: ^4.0.0
         version: 4.0.0
