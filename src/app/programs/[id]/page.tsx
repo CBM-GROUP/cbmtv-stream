@@ -33,8 +33,10 @@ export async function generateMetadata({
 
 export default async function ProgramDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   try {
     const awaitedParams = await params;
@@ -44,7 +46,9 @@ export default async function ProgramDetailPage({
       notFound();
     }
 
-    return <ProgramDetail program={program.data} />;
+    const query = await searchParams;
+    const positiveId = (value: unknown) => typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
+    return <ProgramDetail program={program.data} intent={{ play: query.play === '1', episode: positiveId(query.episode), miniseries: positiveId(query.part) }} />;
   } catch {
     notFound();
   }

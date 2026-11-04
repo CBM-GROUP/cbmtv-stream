@@ -2,12 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function TrackedVideo({ src, onEnded, onPlay }: {
+export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgress }: {
   src: string;
   onEnded: () => void;
   onPlay: () => void;
+  startSeconds?: number;
+  onProgress?: (position: number, duration: number, force?: boolean) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const progressRef = useRef(onProgress);
+  progressRef.current = onProgress;
+  const started = useRef(false);
   const [status, setStatus] = useState<"loading" | "buffering" | "blocked" | "error" | "playing">("loading");
 
   useEffect(() => {
@@ -25,6 +30,7 @@ export function TrackedVideo({ src, onEnded, onPlay }: {
       else if (error.name !== "AbortError") setStatus("error");
     });
     return () => {
+      if (started.current) progressRef.current?.(video.currentTime, video.duration, true);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("error", onError);
@@ -32,7 +38,11 @@ export function TrackedVideo({ src, onEnded, onPlay }: {
   }, [src]);
 
   return <>
-    <video ref={videoRef} className="h-full w-full object-contain" src={src} controls playsInline preload="metadata" onEnded={onEnded} onPlay={onPlay}>Your browser does not support video playback.</video>
+    <video ref={videoRef} className="h-full w-full object-contain" src={src} controls playsInline preload="metadata"
+      onLoadedMetadata={(event) => { const video = event.currentTarget; if (startSeconds > 0) video.currentTime = Math.min(startSeconds, Math.max(0, video.duration - 1)); }}
+      onTimeUpdate={(event) => onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration)}
+      onPause={(event) => onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration, true)}
+      onEnded={(event) => { onProgress?.(event.currentTarget.duration, event.currentTarget.duration, true); onEnded(); }} onPlay={() => { started.current = true; onPlay(); }}>Your browser does not support video playback.</video>
     {status !== "playing" && <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-center text-sm text-white" role="status">
       {status === "error" || status === "blocked" ? (
         <button

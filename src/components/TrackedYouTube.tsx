@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 
 type YouTubePlayer = {
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
   playVideo: () => void;
   destroy: () => void;
 };
@@ -33,18 +36,24 @@ function youtubeApi(): Promise<YouTubeApi> {
   return apiPromise;
 }
 
-export function TrackedYouTube({ videoId, onEnded, onPlaybackChange }: { videoId: string; onEnded: () => void; onPlaybackChange?: (playing: boolean) => void }) {
+export function TrackedYouTube({ videoId, onEnded, onPlaybackChange, startSeconds = 0, onProgress }: { videoId: string; onEnded: () => void; onPlaybackChange?: (playing: boolean) => void; startSeconds?: number; onProgress?: (position: number, duration: number, force?: boolean) => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const endedRef = useRef(onEnded);
   endedRef.current = onEnded;
   const playbackChangeRef = useRef(onPlaybackChange);
   playbackChangeRef.current = onPlaybackChange;
+  const progressRef = useRef(onProgress);
+  progressRef.current = onProgress;
+  const startRef = useRef(startSeconds);
+  startRef.current = startSeconds;
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
     let disposed = false;
     let player: YouTubePlayer | null = null;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const sample = (force = false) => { if (player) progressRef.current?.(player.getCurrentTime(), player.getDuration(), force); };
 
     void youtubeApi().then((api) => {
       if (disposed || !mount) return;
@@ -53,9 +62,13 @@ export function TrackedYouTube({ videoId, onEnded, onPlaybackChange }: { videoId
         playerVars: { autoplay: 1, controls: 1, playsinline: 1, origin: window.location.origin },
         events: {
           onReady: () => {
+            if (startRef.current > 0) player?.seekTo(startRef.current, true);
             player?.playVideo();
           },
           onStateChange: ({ data }) => {
+            if (timer) clearInterval(timer);
+            if (data === 1) timer = setInterval(() => sample(), 15000);
+            if (data === 0 || data === 2) sample(true);
             playbackChangeRef.current?.(data === 1);
             if (data === 0) endedRef.current();
           },
@@ -67,6 +80,8 @@ export function TrackedYouTube({ videoId, onEnded, onPlaybackChange }: { videoId
 
     return () => {
       disposed = true;
+      if (timer) clearInterval(timer);
+      sample(true);
       player?.destroy();
     };
   }, [videoId]);
