@@ -10,8 +10,14 @@ test("movie without a trailer is selected immediately", () => {
   assert.deepEqual(initialPlayback(null, movie), { phase: "main", url: movie, session: 0 });
 });
 
-test("movie starts before its optional trailer", () => {
-  assert.deepEqual(initialPlayback(trailer, movie), { phase: "main", url: movie, session: 0 });
+test("detail opens with its optional trailer before main authorization", () => {
+  assert.deepEqual(initialPlayback(trailer, movie), { phase: "trailer", url: trailer, session: 0 });
+});
+
+test("resume intent skips trailer and late completion cannot restart main", () => {
+  const resumed = playbackTransition(initialPlayback(trailer, movie), { type: 'playMain', url: movie });
+  assert.equal(resumed.phase, 'main');
+  assert.equal(playbackTransition(resumed, { type: 'trailerFinished', main: movie }), resumed);
 });
 
 test("trailer can be selected and its completion returns to the movie once", () => {

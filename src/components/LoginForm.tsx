@@ -26,9 +26,11 @@ export const LoginForm = ({ returnTo = "/" }: { returnTo?: string }) => {
     const password = String(fields.get("password") || "");
     if (register && password !== fields.get("confirm")) { setError("Passwords do not match."); return; }
     setBusy(true); setError(null);
+    const session = localStorage.getItem('refresh_token');
     try {
       if (register) await registerUser({ name: String(fields.get("name") || "").trim(), email, password });
       const { data } = await loginUser({ email, password });
+      if (localStorage.getItem('refresh_token') !== session) { setError('The signed-in account changed. Try again to switch accounts.'); return; }
       login(data.user, data.access, data.refresh);
       if (googleTokenToLink) {
         try { await linkGoogleAccount({ id_token: googleTokenToLink, current_password: password }); }
@@ -43,8 +45,10 @@ export const LoginForm = ({ returnTo = "/" }: { returnTo?: string }) => {
   const handleGoogleLogin = async (idToken: string) => {
     if (busy) return;
     setBusy(true); setError(null);
+    const session = localStorage.getItem('refresh_token');
     try {
       const { data } = await googleDirectLogin({ id_token: idToken });
+      if (localStorage.getItem('refresh_token') !== session) { setError('The signed-in account changed. Try again to switch accounts.'); return; }
       login(data.user, data.access, data.refresh);
       router.replace(safeReturnTo(returnTo));
     } catch (err) {

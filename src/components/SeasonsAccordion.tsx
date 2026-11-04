@@ -31,7 +31,7 @@ export default function SeasonsAccordion({ seasons, episodesBySeason, onEpisodeS
                 <button
                   key={episode.id}
                   type="button"
-                  disabled={!episode.streaming_link}
+                  disabled={!episode.playback_available && !episode.streaming_link}
                   className="rounded-lg border border-white/10 p-4 text-left transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => onEpisodeSelect(episode)}
                 >
