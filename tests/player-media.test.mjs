@@ -99,7 +99,7 @@ function nativeFixture({ nativeHls = false, credentials = false, blocked = false
       if (this.blocked) return Promise.reject(new DOMException('Autoplay blocked', 'NotAllowedError'));
       this.paused = false;
       this.dispatchEvent(new Event('play'));
-      this.reactOnPlay?.();
+      this.reactOnPlay?.({ currentTarget: this });
       return Promise.resolve();
     },
     pause() { this.paused = true; this.dispatchEvent(new Event('pause')); this.reactOnPause?.({ currentTarget: this }); },

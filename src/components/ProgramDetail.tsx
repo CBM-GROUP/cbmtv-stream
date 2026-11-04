@@ -3,7 +3,6 @@
 import SeasonsAccordion from "@/components/SeasonsAccordion";
 import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
-import { useContent } from "@/hooks/useContent";
 import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
 import type { Episode, MiniSeries, Program, Season } from "@/types";
 import { ChevronRight } from "lucide-react";
@@ -19,6 +18,7 @@ import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { resumePosition } from '@/lib/homepage-progress';
 import { useAuthorizedPlayback } from '@/hooks/useAuthorizedPlayback';
 import { playbackDestination, signInDestination } from '@/lib/auth-return';
+import { getSimilar, recordDetailOpened, recordRecommendationSelection, recordPlaybackEvent } from '@/services/discovery';
 
 type Props = {
   program: Program;
@@ -108,6 +108,7 @@ export default function ProgramDetail({ program, intent }: Props) {
   const playbackSession = playback.session;
   const authorization = useAuthorizedPlayback(user?.id, program.id, currentPart?.episode, currentPart?.miniseries,
     initialSelection === selectionKey && playbackType === 'streaming' && !playbackEnded && !selectionMessage && !authLoading && progressReady && (!episodic || Boolean(currentPart)));
+  const analytics = useRef<{ sessionId: string; firstPosition: number; duration: number; lastSent: number } | null>(null);
   const currentVideoUrl = playbackType === 'ad' ? playback.url : authorization.grant?.url ?? null;
   const openedProgram = useRef({ id: program.id, trailer: program.trailer_link, main: program.streaming_link });
   // Content.trailer_link and .streaming_link are both nullable on the API.
@@ -120,7 +121,18 @@ export default function ProgramDetail({ program, intent }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const { data: channelContent } = useContent();
+  const [similarPrograms, setSimilarPrograms] = useState<Program[]>([]);
+  const [similarError, setSimilarError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    setSimilarPrograms([]);
+    setSimilarError(false);
+    void getSimilar(program.id, controller.signal).then(data => {
+      if (!controller.signal.aborted) setSimilarPrograms(data.items);
+    }).catch(() => { if (!controller.signal.aborted) setSimilarError(true); });
+    void recordDetailOpened(program.id);
+    return () => controller.abort();
+  }, [program.id]);
 
   const handleShare = () => {
     const url = window.location.href;
@@ -295,20 +307,6 @@ export default function ProgramDetail({ program, intent }: Props) {
       ? getYouTubeVideoId(currentVideoUrl)
       : null;
 
-  const channelPrograms = useMemo(() => {
-    if (!channelContent) return [];
-    const genre = program.genre?.trim().toLowerCase();
-    return channelContent
-      .filter((item) => item.id !== program.id &&
-        (item.content_type === program.content_type || (genre && item.genre?.trim().toLowerCase() === genre)))
-      .sort((a, b) => {
-        const aGenreMatch = Number(Boolean(genre && a.genre?.trim().toLowerCase() === genre));
-        const bGenreMatch = Number(Boolean(genre && b.genre?.trim().toLowerCase() === genre));
-        return bGenreMatch - aGenreMatch;
-      })
-      .slice(0, 12);
-  }, [channelContent, program.id, program.genre, program.content_type]);
-
   const orderedParts = useMemo<PlayablePart[]>(() => {
     if (isSeries && program.content_type !== 'miniseries') {
       return seasons.flatMap((season) => (episodesBySeason[season.id] ?? [])
@@ -411,12 +409,24 @@ export default function ProgramDetail({ program, intent }: Props) {
   const trackProgress = (position: number, duration: number, force = false) => {
     if (playbackType === 'streaming' && activePlaybackIdentity.current === playbackIdentity && Number.isFinite(position) && Number.isFinite(duration) && position >= 0 && duration > 0) playhead.current = { key: playbackIdentity, position: Math.min(position, duration) };
     if (playbackType === 'streaming' && user && progressReady) record(position, duration, currentPart?.episode, currentPart?.miniseries, force);
+    const sample = analytics.current;
+    if (playbackType === 'streaming' && user && sample && sample.sessionId === authorization.grant?.session_id &&
+        Number.isFinite(position) && Number.isFinite(duration) && duration > 0 && position - sample.firstPosition >= 10 &&
+        Date.now() - sample.lastSent >= 15000) {
+      sample.lastSent = Date.now();
+      sample.duration = duration;
+      void recordPlaybackEvent('playback_progress', sample.sessionId, position, duration);
+    }
   };
 
   const handlePlaybackEnded = useCallback(() => {
     if (playbackType === "ad") {
       startMain();
       return;
+    }
+    if (analytics.current && user && playhead.current?.key === playbackIdentity) {
+      void recordPlaybackEvent('playback_completed', analytics.current.sessionId,
+        playhead.current.position, analytics.current.duration);
     }
     dispatchPlayback((state) => playbackTransition(state, { type: "ended" }));
     if (playbackType !== "streaming" || !currentPart) return;
@@ -425,7 +435,7 @@ export default function ProgramDetail({ program, intent }: Props) {
       setSecondsLeft(30);
       setNextPart(orderedParts[index + 1]);
     }
-  }, [playbackType, currentPart, orderedParts, startMain]);
+  }, [playbackType, currentPart, orderedParts, startMain, user, playbackIdentity]);
 
   useEffect(() => {
     if (!nextPart) return;
@@ -482,7 +492,12 @@ export default function ProgramDetail({ program, intent }: Props) {
               startSeconds={startSeconds}
               onProgress={trackProgress}
               onEnded={handlePlaybackEnded}
-              onPlay={() => {
+              onPlay={(position, duration) => {
+                const sessionId = authorization.grant?.session_id;
+                if (playbackType === 'streaming' && user && sessionId && analytics.current?.sessionId !== sessionId) {
+                  analytics.current = { sessionId, firstPosition: position, duration: Number.isFinite(duration) && duration > 0 ? duration : Math.max(position + 1, 1), lastSent: Date.now() };
+                  void recordPlaybackEvent('playback_started', sessionId, position, analytics.current.duration);
+                }
                 if (!nextPart) dispatchPlayback((state) => playbackTransition(state, { type: "playing" }));
               }}
             />
@@ -567,7 +582,7 @@ export default function ProgramDetail({ program, intent }: Props) {
       {playbackEnded && !nextPart && (
         <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
           <span>{playbackType === "ad" ? "Trailer finished." : "Playback finished."}</span>
-          {channelPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
+          {similarPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
           <Link href="/" className="text-teal-400 underline">Back to home</Link>
         </div>
       )}
@@ -664,7 +679,7 @@ export default function ProgramDetail({ program, intent }: Props) {
             </div>
           </div>
       </div>
-      {channelPrograms.length > 0 && (
+      {(similarPrograms.length > 0 || similarError) && (
         <div id="similar-programs" className="w-full mx-auto p-5 lg:p-14 mb-24">
           <div className="mb-8 flex items-center justify-between">
             <h3 className="text-xl font-medium">Similar titles</h3>
@@ -673,16 +688,18 @@ export default function ProgramDetail({ program, intent }: Props) {
               <ChevronRight size={18} strokeWidth={1.5}/>
             </Link>
           </div>
+          {similarError && <p role="alert" className="mb-4 text-sm text-white/65">Similar titles are unavailable right now.</p>}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
-            {channelPrograms.map((item, index) => (
+            {similarPrograms.map((item) => (
               <ProgramCard
-                key={index}
+                key={item.id}
                 id={item.id}
                 title={item.title}
                 src={item.thumbnail}
                 alt={item.title}
                 slug={`programs/${item.id}`}
                 href={`/programs/${item.id}`}
+                onClick={() => { void recordRecommendationSelection(item.id, 'similar'); }}
               />
             ))}
           </div>

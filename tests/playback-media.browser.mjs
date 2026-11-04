@@ -27,6 +27,7 @@ const program = { id: 1, title: 'Local HLS fixture', content_type: 'movie', cate
   trailer_link: `${api}/media/trailer.mp4`, channel: 1, thumbnail: null, duration: '00:00:18', genres: [] };
 let savedPosition = 0;
 const requests = [], writes = [], selections = [];
+const discoveryEvents = [];
 const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:3014');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -65,8 +66,18 @@ const server = createServer(async (req, res) => {
     let body = ''; for await (const part of req) body += part;
     selections.push({ path: url.pathname, owner, ...JSON.parse(body || '{}') });
     res.setHeader('Set-Cookie', 'fixture-grant=yes; HttpOnly; SameSite=Lax; Path=/media/; Max-Age=60');
-    return json({ state: 'ready', url: `${api}/media/master.m3u8`, type: 'hls', with_credentials: true, expires_at: new Date(Date.now() + 900000).toISOString() });
+    return json({ state: 'ready', url: `${api}/media/master.m3u8`, type: 'hls', with_credentials: true,
+      session_id: '00000000-0000-4000-8000-000000000001', expires_at: new Date(Date.now() + 900000).toISOString() });
   }
+  if (url.pathname === '/api/discovery/events/' && req.method === 'POST') {
+    let body = ''; for await (const part of req) body += part;
+    discoveryEvents.push({ owner, ...JSON.parse(body || '{}') }); return json({ accepted: true }, 201);
+  }
+  if (url.pathname === '/api/discovery/similar/1/') return json({ items: [{ ...program, id: 2, title: 'Related fixture' }] });
+  if (url.pathname === '/api/discovery/similar/2/') return json({ items: [{ ...program }] });
+  if (url.pathname === '/api/discovery/rankings/trending/') return json({ items: [program], available: true, stale: false });
+  if (url.pathname === '/api/discovery/rankings/most-watched/') return json({ items: [program], available: true, stale: false });
+  if (url.pathname === '/api/discovery/recommended/') return owner ? json({ items: [program], personalized: false, reason: 'cold_start' }) : json({}, 401);
   if (url.pathname === '/api/accounts/profile/') return owner ? json({ id: owner, name: `Fixture ${owner}`, email: `fixture${owner}@example.invalid` }) : json({}, 401);
   if (url.pathname === '/api/library/progress/1/') return owner && savedPosition ? json({ id: 1, content: program, position_seconds: savedPosition,
     duration_seconds: 18, completed: false, episode: null, miniseries: null }) : json({}, 404);
@@ -79,11 +90,11 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/content/') return json({ count: 1, next: null, results: [program] });
   return json({ count: 0, next: null, results: [] });
 });
-await new Promise(resolve => server.listen(18041, '127.0.0.1', resolve));
+await new Promise((resolve, reject) => { server.once('error', reject); server.listen(18041, '127.0.0.1', resolve); });
 for (const path of ['master.m3u8', '360p/index.m3u8', '360p/index0.ts']) assert.equal((await fetch(`${api}/media/${path}`)).status, 403);
 const next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3014', '-H', '127.0.0.1'], { stdio: 'ignore', windowsHide: true });
-const chrome = spawn(process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--no-first-run',
-  '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=9344', `--user-data-dir=${root}/chrome`, 'about:blank'], { stdio: 'ignore', windowsHide: true });
+const chrome = spawn(process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run',
+  '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=9344', `--user-data-dir=${root}/chrome-${process.pid}`, 'about:blank'], { stdio: 'ignore', windowsHide: true });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 let socket, serial = 0;
 const pending = new Map();
@@ -102,7 +113,7 @@ const token = id => `fixture.${Buffer.from(JSON.stringify({ user_id: id, exp: 99
 try {
   let endpoint;
   for (let i = 0; i < 100; i++) {
-    try { endpoint = (await fetch('http://127.0.0.1:9344/json/list').then(r => r.json())).find(p => p.type === 'page')?.webSocketDebuggerUrl; if (endpoint) break; } catch {}
+    try { endpoint = (await fetch('http://127.0.0.1:9344/json/list', { signal: AbortSignal.timeout(1000) }).then(r => r.json())).find(p => p.type === 'page')?.webSocketDebuggerUrl; if (endpoint) break; } catch {}
     await delay(100);
   }
   assert.ok(endpoint, 'Chrome DevTools startup');
@@ -114,6 +125,7 @@ try {
   const navigate = async path => { await send('Page.navigate', { url: `http://127.0.0.1:3014${path}` }); await waitFor('document.querySelector(".watch-layout")'); };
   await navigate('/programs/1');
   await waitFor("Array.from(document.querySelectorAll('a')).some(a => a.textContent === 'Sign in to watch')");
+  await waitFor("document.body.innerText.includes('Related fixture')");
   assert.equal(requests.filter(r => r.path.endsWith('/playback/')).length, 0, 'anonymous trailer completion cannot authorize main');
   const returnTo = await evaluate("Array.from(document.querySelectorAll('a')).find(a => a.textContent === 'Sign in to watch').getAttribute('href')");
   assert.match(returnTo, /programs%2F1%3Fplay%3D1/);
@@ -166,9 +178,20 @@ try {
   assert.ok(selections.some(item=>item.path==='/api/content/2/playback/' && item.episode===21), 'fast Skip waits for delayed episodes and selects first');
   await navigate('/programs/2?play=1&episode=999');
   await waitFor('document.body.innerText.includes("requested episode") || document.body.innerText.includes("Requested episode")');
+  await send('Page.navigate', { url: 'http://127.0.0.1:3014/programs' });
+  await waitFor("document.body.innerText.includes('Trending Now') && document.body.innerText.includes('Most Watched') && document.body.innerText.includes('Explore for You')");
+  for (const width of [390, 1440]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+    await delay(300);
+    const layout = await evaluate('({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})');
+    assert.ok(layout.scrollWidth <= layout.width + 1, 'discovery rails have no viewport overflow');
+  }
+  assert.ok(discoveryEvents.some(event => event.type === 'detail_opened'), 'detail opening emits an event');
+  assert.ok(discoveryEvents.some(event => event.type === 'playback_started' && event.owner), 'authorized playback emits an owner-bound start');
   writeFileSync(join(root, 'results.json'), JSON.stringify({ environment: 'headless desktop Chrome, local generated H264/AAC, fixture API; no AWS or real device',
     anonymous_trailer_to_signin: true, authenticated_trailer_to_hls: true, resumed_seconds: resumed, manual_quality_options: qualities,
     account_switch: true, fast_episode_skip: true, unavailable_episode: true, layouts, nativeMetrics, metrics, qualityMetrics, finalMetrics, writes, selections,
+    discovery_events: discoveryEvents, discovery_rails: true,
     javascript_path: 'Native HLS capability suppressed for this phase; actual hls.js MSE decoding and segment requests.' }, null, 2));
   console.log(JSON.stringify({ passed: true, artifact: join(root, 'results.json'), metrics, resumed_seconds: resumed, layouts }));
 } finally {
