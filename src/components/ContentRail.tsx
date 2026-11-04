@@ -4,9 +4,10 @@ import { useId, useRef } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Program } from "@/types";
 import { ProgramCard } from "./ProgramCard";
+import { recordRecommendationSelection, type DiscoverySource } from '@/services/discovery';
 
-export function ContentRail({ title, items = [], loading = false, error = false, onRetry }: {
-  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void;
+export function ContentRail({ title, items = [], loading = false, error = false, onRetry, source }: {
+  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void; source?: DiscoverySource;
 }) {
   const track = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -21,7 +22,7 @@ export function ContentRail({ title, items = [], loading = false, error = false,
     </div>
     {error ? <div className="flex items-center gap-4 py-5 text-sm text-white/65" role="alert"><p>Couldn&apos;t load {title.toLowerCase()}.</p><button onClick={onRetry} className="text-teal-300 underline">Try again</button></div> :
       <div ref={track} className="content-rail h-scroll" tabIndex={0} aria-label={`${title} titles`} aria-busy={loading}>
-        {loading ? Array.from({ length: 6 }, (_, i) => <div key={i} className="rail-card" aria-hidden="true"><div className="aspect-2/3 animate-pulse rounded-lg bg-white/10" /><div className="mt-2 h-10 rounded bg-white/5" /></div>) : items.map((item) => <div className="rail-card" key={item.id}><ProgramCard id={item.id} title={item.title} src={item.thumbnail} alt={item.title} slug={`programs/${item.id}`} href={`/programs/${item.id}`} /></div>)}
+        {loading ? Array.from({ length: 6 }, (_, i) => <div key={i} className="rail-card" aria-hidden="true"><div className="aspect-2/3 animate-pulse rounded-lg bg-white/10" /><div className="mt-2 h-10 rounded bg-white/5" /></div>) : items.map((item) => <div className="rail-card" key={item.id}><ProgramCard id={item.id} title={item.title} src={item.thumbnail} alt={item.title} slug={`programs/${item.id}`} href={`/programs/${item.id}`} onClick={source ? () => { void recordRecommendationSelection(item.id, source); } : undefined} /></div>)}
       </div>}
   </section>;
 }

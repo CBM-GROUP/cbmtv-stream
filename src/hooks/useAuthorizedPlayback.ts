@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { viewerRequest } from '@/services/viewer-api';
 
-type Grant = { url: string; type: 'hls' | 'progressive'; with_credentials: boolean; expires_at: string };
+type Grant = { url: string; type: 'hls' | 'progressive'; with_credentials: boolean; expires_at: string; session_id?: string };
 
 export function useAuthorizedPlayback(userId: number | undefined, contentId: number, episode: number | undefined, miniseries: number | undefined, enabled: boolean) {
   const [result, setResult] = useState<{ key: string; grant?: Grant; message?: string }>({ key: '' });
@@ -15,12 +15,14 @@ export function useAuthorizedPlayback(userId: number | undefined, contentId: num
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let processingPolls = 0;
+    let sessionId: string | undefined;
     const authorize = async () => {
       try {
         const { data } = await viewerRequest<Grant>(userId, { method: 'POST', url: `/api/content/${contentId}/playback/`,
-          data: { episode, miniseries }, withCredentials: true, signal: controller.signal, timeout: 20000 });
+          data: { episode, miniseries, session_id: sessionId }, withCredentials: true, signal: controller.signal, timeout: 20000 });
         if (controller.signal.aborted) return;
         setResult({ key, grant: data });
+        sessionId = data.session_id;
         // Cookies renew without changing the HLS URL or restarting the player.
         const delay = Date.parse(data.expires_at) - Date.now() - 60000;
         if (Number.isFinite(delay)) timer = setTimeout(() => void authorize(), Math.max(10000, delay));

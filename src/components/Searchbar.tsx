@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { SafeImage } from "@/components/SafeImage";
 import { useSearch } from "@/hooks/useSearch";
+import { recordSearchSelection, submitSearchEvent } from "@/services/discovery";
 
 const MAX_RESULTS = 8;
 const DEBOUNCE_MS = 250;
@@ -105,6 +106,7 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && query) {
       event.preventDefault();
+      void submitSearchEvent(query, 'title', query === debouncedTerm ? data?.receipt : undefined);
       setShowDropdown(false);
       onNavigate?.();
       router.push(`/search?q=${encodeURIComponent(query)}&search_by=title`);
@@ -195,7 +197,7 @@ export const Searchbar = ({ onNavigate }: { onNavigate?: () => void }) => {
                   <Link
                     href={`/programs/${hit.id}`}
                     onMouseEnter={() => setActiveIndex(i)}
-                    onClick={() => { setShowDropdown(false); onNavigate?.(); }}
+                    onClick={() => { void recordSearchSelection(query, 'title', hit.id, data?.receipt); setShowDropdown(false); onNavigate?.(); }}
                     className={`flex items-center gap-3 px-4 py-2 cursor-pointer text-black ${
                       i === activeIndex ? "bg-gray-100" : "hover:bg-gray-100"
                     }`}

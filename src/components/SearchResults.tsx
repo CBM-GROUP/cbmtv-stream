@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SafeImage } from "@/components/SafeImage";
 import { useSearch } from "@/hooks/useSearch";
 import { SEARCH_MODES, type SearchMode } from "@/services/search";
+import { recordSearchSelection, submitSearchEvent } from "@/services/discovery";
 
 const PAGE_SIZE = 20;
 
@@ -27,6 +28,7 @@ export function SearchResults() {
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (draft.trim()) void submitSearchEvent(draft, mode, draft.trim() === query && page === 1 ? data?.receipt : undefined);
     navigate(draft, mode);
   };
 
@@ -63,7 +65,7 @@ export function SearchResults() {
       <p className="mt-8 text-sm text-white/70">{data.total} result{data.total === 1 ? "" : "s"}</p>
       <ul className="mt-4 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
         {data.hits.map((hit) => <li key={hit.id}>
-          <Link href={`/programs/${hit.id}`} className="block rounded-lg bg-white/5 p-2 hover:bg-white/10">
+          <Link href={`/programs/${hit.id}`} onClick={() => { void recordSearchSelection(query, mode, hit.id, data.receipt); }} className="block rounded-lg bg-white/5 p-2 hover:bg-white/10">
             <div className="aspect-[2/3] overflow-hidden rounded bg-white/10">
               {hit.thumbnail && <SafeImage src={hit.thumbnail} alt="" width={320} height={480} className="h-full w-full object-cover" />}
             </div>

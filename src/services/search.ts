@@ -19,6 +19,7 @@ export interface SearchResponse {
   total: number;
   offset: number;
   next_offset: number | null;
+  receipt?: string | null;
 }
 
 export type SearchMode = "title" | "everything" | "director" | "genre" | "cast" | "channel";
