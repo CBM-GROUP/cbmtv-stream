@@ -1,6 +1,6 @@
 # Branch 4 website review
 
-This worktree intentionally depends on **unmerged website Branch 3 PR #29**, `origin/feat/homepage-management` at `f81448ee14cc7111437ef9574380898588b30200`. Backend/dashboard Branch 3 are merged; their recorded deployment does not imply this website is deployed. Merge/rebase strategy needs review after PR #29 is accepted. No commit, push, merge or deployment was performed.
+This worktree intentionally depends on **unmerged website Branch 3 PR #29**, `origin/feat/homepage-management` at `f81448ee14cc7111437ef9574380898588b30200`. Backend/dashboard Branch 3 are merged; their recorded deployment does not imply this website is deployed. Merge/rebase strategy needs review after PR #29 is accepted. This branch is committed and pushed for review; no merge or deployment was performed.
 
 Catalogue browsing stays anonymous. Public content and episode records now advertise `playback_available` while retaining nullable `streaming_link`; protected URLs come only from authenticated `POST /api/content/{id}/playback/` with optional `episode` or `miniseries`. Requests use account-bound viewer credentials. Processing/unavailable responses explain the state and offer retry; processing polls are bounded. HLS grants renew before expiry without changing their URL. Delivery configuration must permit credentialed requests and use the shared-domain CloudFront cookies described in backend documentation.
 
