@@ -10,7 +10,7 @@ type Quality = { index: number; height: number; bitrate: number };
 export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgress, withCredentials = false, sourceType }: {
   src: string;
   onEnded: () => void;
-  onPlay: () => void;
+  onPlay: (position: number, duration: number) => void;
   startSeconds?: number;
   onProgress?: (position: number, duration: number, force?: boolean) => void;
   withCredentials?: boolean;
@@ -231,7 +231,7 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       onTimeUpdate={(event) => onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration)}
       onPause={(event) => { if (started.current) onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration, true); }}
       onEnded={(event) => { onProgress?.(event.currentTarget.duration, event.currentTarget.duration, true); setStatus("paused"); onEnded(); }}
-      onPlay={() => { started.current = true; onPlay(); }}>Your browser does not support video playback.</video>
+      onPlay={(event) => { started.current = true; onPlay(event.currentTarget.currentTime, event.currentTarget.duration); }}>Your browser does not support video playback.</video>
     {qualities.length > 1 && <label className="absolute left-3 top-3 z-10 rounded-md bg-neutral-950/85 text-xs text-white">
       <span className="sr-only">Video quality</span>
       <select aria-label="Video quality" value={quality} className="min-h-9 max-w-36 rounded-md border border-white/20 bg-neutral-950 px-2" onChange={(event) => {

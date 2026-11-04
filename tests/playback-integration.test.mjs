@@ -72,6 +72,7 @@ function fixture({ episodic = false, trailer = true, snapshot = null, intent, ho
     '@/components/SeasonsAccordion': { __esModule: true, default: 'SeasonsAccordion' },
     '@/components/SafeImage': { SafeImage: 'SafeImage' }, '@/components/ui/button': { Button: 'Button' },
     '@/hooks/useContent': { useContent: () => ({ data: [] }) }, '@/services/series': services,
+    '@/services/discovery': { getSimilar: async () => ({ items: [] }), recordDetailOpened: async () => true, recordRecommendationSelection: async () => true, recordPlaybackEvent: async () => true },
     'lucide-react': { ChevronRight: 'ChevronRight' }, 'next/link': { __esModule: true, default: 'Link' },
     './ProgramCard': { ProgramCard: 'ProgramCard' }, './TrackedVideo': { TrackedVideo: 'TrackedVideo' },
     './TrackedYouTube': { TrackedYouTube: 'TrackedYouTube' }, './PlayerOptions': { PlayerOptions: 'PlayerOptions' },
@@ -88,7 +89,7 @@ function fixture({ episodic = false, trailer = true, snapshot = null, intent, ho
     } },
     '@/lib/auth-return': { playbackDestination: id => `/programs/${id}?play=1`, signInDestination: route => `/sign-in?returnTo=${encodeURIComponent(route)}` },
   };
-  const context = { exports: {}, window, document, URL,
+  const context = { exports: {}, window, document, URL, AbortController,
     setTimeout: (fn, ms) => { const timer = { fn, ms }; timers.set(timer, timer); return timer; },
     clearTimeout: timer => timers.delete(timer), console, require(name) {
     if (name === 'react/jsx-runtime') return { jsx: (type, props, key) => ({ type, props, key }), jsxs: (type, props, key) => ({ type, props, key }), Fragment: 'fragment' };
