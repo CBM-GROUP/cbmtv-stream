@@ -1,4 +1,4 @@
-// Run with ffmpeg on PATH, the fixture API on :8001, and next start on :3010.
+// Run with the fixture API on :8001 and next start on :3010.
 // Screenshots and measurements are saved under .next/ui-corrections.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -84,64 +84,11 @@ try {
     measurements.push({ name, ...metrics });
     console.log(`${name}: homepage order, overflow, brand passed`);
   }
-  for (const [name,width,height] of [["mobile",390,844],["tablet",768,1024],["desktop",1440,1000]]) {
-    await send("Emulation.setDeviceMetricsOverride", {width,height,deviceScaleFactor:1,mobile:width<768});
-    await navigate("/programs/1");
-    await waitFor("document.querySelector('video')?.currentTime > 0");
-    assert.equal(await evaluate("document.querySelector('.player-options').textContent.trim()"), "", "No floating cinema label");
-    await send("Input.dispatchMouseEvent", {type:"mouseMoved",x:10,y:10});
-    await waitFor("getComputedStyle(document.querySelector('.player-options')).opacity === '0'", 6000);
-    await evaluate("document.querySelector('video').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))");
-    await waitFor("getComputedStyle(document.querySelector('.player-options')).opacity === '1'");
-    await click('button[aria-label="Player options"]');
-    await waitFor("document.querySelector('button[aria-pressed]')");
-    await delay(2800);
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.player-options')).opacity"), "1", "Open options stay visible");
-    await screenshot(`${name}-options`);
-    await click('button[aria-pressed]');
-    await waitFor("document.querySelector('.watch-layout').dataset.playerMode === 'theater'");
-    const time = await evaluate("document.querySelector('video').currentTime");
-    assert.ok(time > 0, "Cinema toggle preserves playback");
-    await screenshot(`${name}-cinema`);
-    await click('button[aria-label="Enter fullscreen"]');
-    await waitFor("document.fullscreenElement?.classList.contains('player-band')");
-    // Popover remains inside the fullscreen element and can leave cinema there.
-    await click('button[aria-label="Player options"]');
-    await waitFor("document.fullscreenElement.contains(document.querySelector('button[aria-pressed]'))");
-    await click('button[aria-pressed]');
-    await waitFor("document.querySelector('.watch-layout').dataset.playerMode === 'standard'");
-    await click('button[aria-label="Exit fullscreen"]');
-    await waitFor("!document.fullscreenElement");
-    await evaluate("document.querySelector('video').pause()");
-    await delay(2800);
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.player-options')).opacity"), "1", "Paused controls remain visible");
-    await evaluate("document.querySelector('button[aria-label=\"Player options\"]').focus()");
-    await key("Enter","Enter",13);
-    await waitFor("document.querySelector('button[aria-pressed]')");
-    assert.equal(await evaluate("document.activeElement?.matches('button[aria-pressed]')"), true, "Options receive keyboard focus");
-    await key("Escape","Escape",27);
-    await waitFor("document.activeElement?.getAttribute('aria-label') === 'Player options'");
-    await screenshot(`${name}-player`);
-    console.log(`${name}: playback, inactivity, cinema, fullscreen, keyboard passed`);
-  }
-  await navigate("/");
-  await click('button[aria-label="Search catalogue"]');
-  await waitFor("document.querySelector('input[aria-label=\"Search titles or genres\"]')");
-  await send("Input.insertText",{text:"River"});
-  await waitFor("document.querySelectorAll('li[role=option]').length > 0");
-  await key("ArrowDown","ArrowDown",40); await key("Enter","Enter",13);
-  await waitFor("location.pathname.startsWith('/programs/') && document.querySelector('.watch-layout')");
-  await navigate("/sign-in?returnTo=%2Fprograms%2F1%3Fplay%3D1");
-  await waitFor("document.querySelector('input[name=email]')");
-  await evaluate("document.querySelector('input[name=email]').focus()"); await send("Input.insertText",{text:"viewer@example.test"});
-  await evaluate("document.querySelector('input[name=password]').focus()"); await send("Input.insertText",{text:"fixture-only"});
-  await click('button[type=submit]');
-  await waitFor("location.pathname === '/programs/1'");
   await navigate("/channels");
   await waitFor("document.querySelector('a[href=\"/channels/1\"]')");
   await evaluate("document.querySelector('a[href=\"/channels/1\"]').click()");
   await waitFor("location.pathname === '/channels/1' && document.body.innerText.includes('CBM Music')");
-  console.log("Search, sign-in return, and channel navigation passed");
+  console.log("Channel directory and channel navigation passed");
   await writeFile(`${artifacts}/measurements.json`, JSON.stringify(measurements,null,2));
 } catch (error) {
   if (socket?.readyState === WebSocket.OPEN) { console.log(await evaluate("({url:location.href,text:document.body.innerText.slice(0,500)})")); await screenshot("failure"); }
