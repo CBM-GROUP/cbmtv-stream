@@ -7,7 +7,7 @@ import { playbackMetric } from "@/lib/player-metrics";
 type Status = "loading" | "buffering" | "blocked" | "error" | "playing" | "paused";
 type Quality = { index: number; height: number; bitrate: number };
 
-export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgress, withCredentials = false, sourceType }: {
+export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgress, withCredentials = false, sourceType, advertisement = false, onError, onPlaybackState }: {
   src: string;
   onEnded: () => void;
   onPlay: (position: number, duration: number) => void;
@@ -15,10 +15,17 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
   onProgress?: (position: number, duration: number, force?: boolean) => void;
   withCredentials?: boolean;
   sourceType?: "hls" | "progressive";
+  advertisement?: boolean;
+  onError?: () => void;
+  onPlaybackState?: (playing: boolean) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const progressRef = useRef(onProgress);
+  const errorRef = useRef(onError);
+  errorRef.current = onError;
+  const stateRef = useRef(onPlaybackState);
+  stateRef.current = onPlaybackState;
   progressRef.current = onProgress;
   const startRef = useRef(startSeconds);
   startRef.current = startSeconds;
@@ -61,9 +68,11 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       instance?.stopLoad();
       setStatus("error");
       playbackMetric("error", { code, attempt });
+      stateRef.current?.(false);
+      errorRef.current?.();
     };
     const armDeadline = () => {
-      if (!deadline && !terminal) deadline = setTimeout(() => fail(1), 20000);
+      if (!deadline && !terminal) deadline = setTimeout(() => fail(1), advertisement ? 5000 : 20000);
     };
     const play = () => {
       if (disposed || terminal) return;
@@ -83,6 +92,7 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       if (Number.isFinite(position) && position > 0 && Number.isFinite(video.duration)) video.currentTime = Math.min(position, Math.max(0, video.duration - 1));
     };
     const waiting = () => {
+      stateRef.current?.(false);
       if (terminal || (firstFrame && video.paused)) return;
       if (firstFrame && bufferingAt === null && !video.seeking) bufferingAt = performance.now();
       setStatus(firstFrame ? "buffering" : "loading");
@@ -96,8 +106,10 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       if (bufferingAt !== null) playbackMetric("rebuffer", { duration_ms: now - bufferingAt });
       bufferingAt = null;
       setStatus("playing");
+      stateRef.current?.(true);
     };
     const pause = () => {
+      stateRef.current?.(false);
       if (!terminal && started.current && !video.error) {
         clearDeadline();
         bufferingAt = null;
@@ -191,7 +203,7 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, withCredentials, sourceType, attempt]);
+  }, [src, withCredentials, sourceType, attempt, advertisement]);
 
   const keyboard = (event: KeyboardEvent<HTMLVideoElement>) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -203,7 +215,7 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
       else video.pause();
     } else if (key === "arrowleft" || key === "arrowright") {
       event.preventDefault();
-      if (Number.isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + (key === "arrowleft" ? -5 : 5)));
+      if (!advertisement && Number.isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + (key === "arrowleft" ? -5 : 5)));
     } else if (key === "m") {
       event.preventDefault();
       video.muted = !video.muted;
@@ -227,12 +239,16 @@ export function TrackedVideo({ src, onEnded, onPlay, startSeconds = 0, onProgres
   };
 
   return <>
-    <video ref={videoRef} className="h-full w-full object-contain" controls playsInline preload="metadata" tabIndex={0} aria-label="Video player" onKeyDown={keyboard}
+    <video ref={videoRef} className="h-full w-full object-contain" controls={!advertisement} playsInline preload="metadata" tabIndex={0} aria-label={advertisement ? 'Advertisement video' : 'Video player'} onKeyDown={keyboard}
       onTimeUpdate={(event) => onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration)}
       onPause={(event) => { if (started.current) onProgress?.(event.currentTarget.currentTime, event.currentTarget.duration, true); }}
       onEnded={(event) => { onProgress?.(event.currentTarget.duration, event.currentTarget.duration, true); setStatus("paused"); onEnded(); }}
       onPlay={(event) => { started.current = true; onPlay(event.currentTarget.currentTime, event.currentTarget.duration); }}>Your browser does not support video playback.</video>
-    {qualities.length > 1 && <label className="absolute left-3 top-3 z-10 rounded-md bg-neutral-950/85 text-xs text-white">
+    {advertisement && <div className="absolute bottom-2 left-3 flex gap-2 text-xs text-white">
+      <button type="button" className="min-h-11 rounded bg-black/80 px-3" onClick={() => { const video = videoRef.current; if (video?.paused) playRef.current?.(); else video?.pause(); }}>{status === 'paused' ? 'Play ad' : 'Pause ad'}</button>
+      <button type="button" className="min-h-11 rounded bg-black/80 px-3" onClick={() => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted; }}>Toggle sound</button>
+    </div>}
+    {!advertisement && qualities.length > 1 && <label className="absolute left-3 top-3 z-10 rounded-md bg-neutral-950/85 text-xs text-white">
       <span className="sr-only">Video quality</span>
       <select aria-label="Video quality" value={quality} className="min-h-9 max-w-36 rounded-md border border-white/20 bg-neutral-950 px-2" onChange={(event) => {
         const level = Number(event.target.value);
