@@ -6,8 +6,9 @@ export type Progress = {
   id: number; content: Program; episode: number | null; miniseries: number | null;
   position_seconds: number; duration_seconds: number; completed: boolean; updated_at: string;
 };
-type SectionBase = { label: string; enabled: boolean; source: 'editorial' | 'automatic' | 'personalized' };
+type SectionBase = { label: string; enabled: boolean; source: 'editorial' | 'automatic' | 'personalized' | 'advertising' };
 export type HomepageSection = SectionBase & (
+  { id: 'homepage_banner' | 'homepage_sponsored_section' | 'homepage_featured_sponsor' | 'homepage_channel_promotion' | 'homepage_content_promotion'; items: Program[] } |
   { id: 'featured_channels'; items: Channel[] } |
   { id: 'continue_watching'; items: Progress[] } |
   { id: 'featured_hero' | 'new_releases' | 'tv_shows' | 'movies' | 'documentaries' | 'animations'; items: Program[] }
