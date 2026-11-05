@@ -1,17 +1,12 @@
 // Run with the fixture API on :8001 and next start on :3010.
 // Screenshots and measurements are saved under .next/ui-corrections.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const artifacts = resolve(".next/ui-corrections");
 await mkdir(artifacts, { recursive: true });
-if (!existsSync(`${artifacts}/sample.mp4`)) {
-  const media = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=0x123d39:s=640x360:r=10", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "60", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", `${artifacts}/sample.mp4`], { windowsHide: true });
-  assert.equal(media.status, 0, "ffmpeg must generate the local playback fixture");
-}
 const browser = spawn(process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe", ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required", "--remote-debugging-port=9335", `--user-data-dir=${artifacts}/chrome`, "about:blank"], { stdio: "ignore", windowsHide: true });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let socket, nextId = 0;
@@ -39,15 +34,6 @@ async function navigate(path) {
 async function screenshot(name) {
   const { result } = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
   await writeFile(`${artifacts}/${name}.png`, Buffer.from(result.data, "base64"));
-}
-async function click(selector) {
-  const point = await evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
-}
-async function key(key, code, windowsVirtualKeyCode) {
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode, ...(key === "Enter" ? {text:"\r",unmodifiedText:"\r"} : {}) });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode });
 }
 try {
   let endpoint;
