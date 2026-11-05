@@ -2,7 +2,6 @@ name: Website CI
 
 on:
   pull_request:
-    branches: [main, feat/playback-media]
   push:
     branches: [main]
   workflow_dispatch:
