@@ -31,6 +31,15 @@ http.createServer(async (req, res) => {
     return res.end(data);
   }
   if (url.pathname === "/api/channels/") return send(res, 200, list(channels));
+  if (url.pathname === "/api/homepage/") return send(res, 200, { sections: [
+    { id: 'featured_hero', label: 'Featured Hero', enabled: true, items: [items[0]] },
+    { id: 'featured_channels', label: 'Featured Channels', enabled: true, items: channels },
+    { id: 'new_releases', label: 'New Releases', enabled: true, items: items.slice(0, 4) },
+    { id: 'movies', label: 'Movies', enabled: true, items: items.filter(item => item.content_type === 'movie') },
+    { id: 'tv_shows', label: 'TV Shows', enabled: true, items: items.filter(item => item.content_type === 'series') },
+    { id: 'documentaries', label: 'Documentaries', enabled: true, items: items.filter(item => item.content_type === 'documentary') },
+    { id: 'animations', label: 'Animations', enabled: true, items: items.filter(item => item.content_type === 'animations') },
+  ] });
   if (/^\/api\/channels\/\d+\/$/.test(url.pathname)) return send(res, 200, channels.find((c) => c.id === Number(url.pathname.split("/")[3])));
   if (url.pathname === "/api/content/") return send(res, 200, list(items.filter((item) => (!url.searchParams.get("content_type") || item.content_type === url.searchParams.get("content_type")) && (!url.searchParams.get("featured") || item.is_featured))));
   if (/^\/api\/content\/\d+\/$/.test(url.pathname)) return send(res, 200, items.find((c) => c.id === Number(url.pathname.split("/")[3])));
