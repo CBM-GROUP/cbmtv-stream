@@ -13,10 +13,10 @@ import { playbackDestination } from '@/lib/auth-return';
 import { SponsoredPlacement } from './SponsoredPlacement';
 import { useHeroSettings } from '@/hooks/useHeroSettings';
 
-function FeaturedChannels({ channels }: { channels: Channel[] }) {
+function Channels({ channels }: { channels: Channel[] }) {
   const rail = useRef<HTMLDivElement>(null);
   if (!channels.length) return null;
-  return <section className="content-section" aria-label="Featured Channels"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="section-title">Featured Channels</h2><div className="flex items-center gap-2"><Link className="mr-2 text-sm text-teal-300" href="/channels">See all</Link><button type="button" aria-label="Scroll channels left" className="hidden rounded-full bg-white/10 p-2 hover:bg-white/20 md:block" onClick={() => rail.current?.scrollBy({ left: -320, behavior: 'smooth' })}><ChevronLeft size={18} /></button><button type="button" aria-label="Scroll channels right" className="rail-arrow" onClick={() => {
+  return <section className="content-section" aria-label="Channels"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="section-title">Channels</h2><div className="flex items-center gap-2"><Link className="mr-2 text-sm text-teal-300" href="/channels">See all</Link><button type="button" aria-label="Scroll channels left" className="hidden rounded-full bg-white/10 p-2 hover:bg-white/20 md:block" onClick={() => rail.current?.scrollBy({ left: -320, behavior: 'smooth' })}><ChevronLeft size={18} /></button><button type="button" aria-label="Scroll channels right" className="rail-arrow" onClick={() => {
     const track = rail.current;
     if (track) track.scrollTo({ left: track.scrollLeft >= track.scrollWidth - track.clientWidth - 2 ? 0 : track.scrollLeft + track.clientWidth, behavior: 'smooth' });
   }}><ChevronRight size={18} /></button></div></div>
@@ -34,7 +34,7 @@ export function HomeSections({ homepage, authenticated }: { homepage: Homepage; 
   return <div className="home-catalogue">{homepage.sections.filter((section) => section.enabled).map((section) => {
     if (section.source === 'advertising') return <SponsoredPlacement key={section.id} placement={section.id} context="homepage" />;
     if (section.id === 'featured_hero') return <HomeHero key={section.id} titles={section.items} settings={heroSettings} />;
-    if (section.id === 'featured_channels') return <FeaturedChannels key={section.id} channels={section.items} />;
+    if (section.id === 'featured_channels') return <Channels key={section.id} channels={section.items} />;
     if (section.id === 'continue_watching') return authenticated ? <ContinueWatching key={section.id} items={section.items} /> : null;
     return <ContentRail key={section.id} title={section.label} items={section.items} />;
   })}</div>;

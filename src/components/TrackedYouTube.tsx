@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type YouTubePlayer = {
+export type YouTubePlayer = {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
   playVideo: () => void;
+  mute: () => void;
   destroy: () => void;
 };
-type YouTubeApi = { Player: new (element: HTMLElement, options: {
+export type YouTubeApi = { Player: new (element: HTMLElement, options: {
   videoId: string; width: string; height: string;
   playerVars: { autoplay: number; controls: number; playsinline: number; origin: string };
   events: {
@@ -22,7 +23,7 @@ type YouTubeApi = { Player: new (element: HTMLElement, options: {
 type YouTubeWindow = Window & { YT?: YouTubeApi; onYouTubeIframeAPIReady?: () => void };
 
 let apiPromise: Promise<YouTubeApi> | null = null;
-function youtubeApi(): Promise<YouTubeApi> {
+export function youtubeApi(): Promise<YouTubeApi> {
   const browser = window as YouTubeWindow;
   if (browser.YT?.Player) return Promise.resolve(browser.YT);
   if (!apiPromise) apiPromise = new Promise<YouTubeApi>((resolve, reject) => {

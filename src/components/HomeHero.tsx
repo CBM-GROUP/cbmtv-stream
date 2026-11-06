@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Info, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { defaultHeroSettings, type HeroSettings } from '@/hooks/useHeroSettings';
+import { HeroTrailer } from './HeroTrailer';
 
 export function HomeHero({ titles, loading = false, settings = defaultHeroSettings }: { titles: Program[]; loading?: boolean; settings?: HeroSettings }) {
   const [emblaRef, embla] = useEmblaCarousel({ loop: titles.length > 1 });
@@ -15,6 +16,7 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(true);
   const [phase, setPhase] = useState<'thumbnail' | 'trailer'>('thumbnail');
+  const advance = () => { if (titles.length > 1) embla?.scrollNext(); else setPhase('thumbnail'); };
   useEffect(() => {
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     setPaused(motion.matches);
@@ -34,13 +36,15 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
     return () => { embla.off('select', sync); embla.off('reInit', sync); };
   }, [embla]);
   useEffect(() => {
-    if (paused || !visible || titles.length < 2 || !embla) return;
+    if (paused || !visible || !titles.length || !embla) return;
     const current = titles[active];
     const showTrailer = settings.display_mode === 'thumbnail_trailer' && Boolean(current?.trailer_link);
+    if (titles.length === 1 && !showTrailer) return;
     const duration = phase === 'thumbnail' ? settings.image_duration_seconds : settings.trailer_preview_seconds;
     const timer = setTimeout(() => {
       if (phase === 'thumbnail' && showTrailer) setPhase('trailer');
-      else embla.scrollNext();
+      else if (titles.length > 1) embla.scrollNext();
+      else setPhase('thumbnail');
     }, Math.max(1, duration) * 1000);
     return () => clearTimeout(timer);
   }, [active, embla, paused, phase, settings, titles, visible]);
@@ -50,7 +54,7 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
   </section>;
   return <section className="home-hero group relative bg-black" aria-label="Featured content" aria-roledescription="carousel">
     <div className="embla" ref={emblaRef}><div className="embla__container">{titles.map((title, index) => <div key={title.id} className={`embla__slide home-hero-slide relative shrink-0 overflow-hidden bg-black ${index === active ? 'hero-current-slide' : ''}`} aria-hidden={index !== active} aria-label={`${index + 1} of ${titles.length}`} aria-roledescription="slide">
-      <div className="hero-artwork"><SafeImage fill src={title.backdrop || title.thumbnail} alt={title.title} className="object-cover object-[60%_center]" sizes="(min-width: 1024px) 76vw, 100vw" priority={index === 0} />{index === active && phase === 'trailer' && visible && !paused && title.trailer_link && <video key={title.id} className="hero-trailer absolute inset-0 h-full w-full object-cover" src={title.trailer_link} autoPlay muted playsInline preload="none" onEnded={() => embla?.scrollNext()} onError={() => embla?.scrollNext()} />}</div>
+      <div className="hero-artwork"><div className="hero-artwork-backdrop" aria-hidden="true"><SafeImage fill src={title.backdrop || title.thumbnail} alt="" className="object-cover" sizes="(min-width: 1024px) 58vw, 100vw" /></div><div className="hero-artwork-image"><SafeImage fill src={title.backdrop || title.thumbnail} alt={title.title} className="object-cover object-[60%_center]" sizes="(min-width: 1024px) 58vw, 100vw" priority={index === 0} /></div>{index === active && phase === 'trailer' && visible && !paused && title.trailer_link && <HeroTrailer key={title.id} url={title.trailer_link} onEnded={advance} onError={advance} />}</div>
       <div className="hero-shade-horizontal pointer-events-none absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent" /><div className="hero-shade-vertical pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-transparent to-black/20" />
       <div className="hero-copy"><span className="hero-eyebrow text-xs font-bold uppercase tracking-[0.2em] text-teal-300">Featured on CBM TV</span><h1 className="hero-title"><Link href={`/programs/${title.id}`} tabIndex={index === active ? 0 : -1}>{title.title}</Link></h1>
         <p className="hero-metadata mt-3 text-xs text-white/75 sm:text-sm">{[title.category?.replaceAll('_', ' ') || title.content_type, title.genre, title.duration, title.country].filter(Boolean).join(' · ')}</p><p className="hero-description mt-3 line-clamp-2 max-w-xl text-sm leading-relaxed text-white/80 md:line-clamp-3 md:text-base">{title.description}</p>
