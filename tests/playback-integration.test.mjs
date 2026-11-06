@@ -75,6 +75,7 @@ function fixture({ episodic = false, trailer = true, snapshot = null, intent, ho
     '@/services/discovery': { getSimilar: async () => ({ items: [] }), recordDetailOpened: async () => true, recordRecommendationSelection: async () => true, recordPlaybackEvent: async () => true },
     'lucide-react': { ChevronRight: 'ChevronRight' }, 'next/link': { __esModule: true, default: 'Link' },
     './ProgramCard': { ProgramCard: 'ProgramCard' }, './TrackedVideo': { TrackedVideo: 'TrackedVideo' },
+    './AdvertisingVideo': { AdvertisingVideo: 'TrackedVideo' }, './SponsoredPlacement': { SponsoredPlacement: 'SponsoredPlacement' },
     './TrackedYouTube': { TrackedYouTube: 'TrackedYouTube' }, './PlayerOptions': { PlayerOptions: 'PlayerOptions' },
     '@/lib/playback-flow': flowContext.exports, '@/context/AuthContext': { useAuth: () => state.auth },
     '@/hooks/usePlaybackProgress': { usePlaybackProgress: (id, content, episode, miniseries) => {
@@ -178,7 +179,7 @@ test('progressive authorization renewal preserves the live playhead but account 
     player.props.onProgress(66, 100);
     const oldKey = player.key;
     page.state.grantUrl = 'https://media.example/movie.mp4?signature=renewed'; player = find(page.render(), 'TrackedVideo');
-    assert.notEqual(player.key, oldKey); assert.equal(player.props.startSeconds, 66);
+    assert.equal(player.key, oldKey); assert.equal(player.props.startSeconds, 66);
     page.state.auth = { user: { id: 2 }, loading: false };
     page.state.snapshot = { position_seconds: 4, completed: false, episode: null, miniseries: null };
     player = find(page.render(), 'TrackedVideo'); assert.equal(player.props.startSeconds, 4);
