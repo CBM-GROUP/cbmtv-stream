@@ -13,21 +13,31 @@ const modules = {
   './ContentRail': { ContentRail: 'ContentRail' },
   './ProgramCard': { ProgramCard: 'ProgramCard' },
   './SponsoredPlacement': { SponsoredPlacement: 'SponsoredPlacement' },
+  './SafeImage': { SafeImage: 'SafeImage' },
+  'react': { useRef: () => ({ current: null }) },
+  'lucide-react': { ChevronLeft: 'ChevronLeft', ChevronRight: 'ChevronRight' },
+  'next/link': { default: 'Link' },
+  '@/hooks/useHeroSettings': { useHeroSettings: () => ({ data: { image_duration_seconds: 5, display_mode: 'thumbnail_trailer', trailer_preview_seconds: 20 } }) },
   '@/lib/auth-return': { playbackDestination: () => '/programs/1' },
 };
 const runtime = { jsx: (type, props, key) => ({ type, props, key }), jsxs: (type, props, key) => ({ type, props, key }) };
 const context = { exports: {}, require: name => name === 'react/jsx-runtime' ? runtime : modules[name] ?? (() => { throw new Error(`Unexpected dependency: ${name}`); })() };
 vm.runInNewContext(code, context);
 
-test('homepage omits the old featured channel carousel while preserving editorial and paid sections', () => {
+test('homepage restores the channel rail without moving editorial or paid sections', () => {
   const sections = [
-    { id: 'featured_channels', enabled: true, items: [{ id: 1 }] },
     { id: 'featured_hero', enabled: true, items: [{ id: 2 }] },
+    { id: 'featured_channels', enabled: true, items: [{ id: 1, name: 'Channel One', cover_image_url: '/channel.png' }] },
     { id: 'homepage_top_banner', enabled: true, source: 'advertising', items: [] },
     { id: 'movies', enabled: true, label: 'Movies', items: [] },
   ];
   const tree = context.exports.HomeSections({ homepage: { sections }, authenticated: false });
   const visible = tree.props.children.filter(Boolean);
-  assert.deepEqual(visible.map(node => node.type), ['HomeHero', 'SponsoredPlacement', 'ContentRail']);
-  assert.equal(visible[1].props.context, 'homepage');
+  assert.deepEqual(visible.map(node => typeof node.type === 'function' ? node.type.name : node.type), ['HomeHero', 'FeaturedChannels', 'SponsoredPlacement', 'ContentRail']);
+  assert.equal(visible[0].props.settings.image_duration_seconds, 5);
+  assert.equal(visible[2].props.context, 'homepage');
+  const rail = visible[1].type(visible[1].props);
+  assert.equal(rail.props['aria-label'], 'Featured Channels');
+  assert.equal(rail.props.children[1].props['aria-label'], 'Channel carousel');
+  assert.equal(rail.props.children[1].props.children[0].props.href, '/channels/1');
 });
