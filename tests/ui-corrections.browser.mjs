@@ -7,9 +7,9 @@ import { resolve } from "node:path";
 
 const artifacts = resolve(".next/ui-corrections");
 await mkdir(artifacts, { recursive: true });
-const browser = spawn(process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe", ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required", "--remote-debugging-port=9335", `--user-data-dir=${artifacts}/chrome`, "about:blank"], { stdio: "ignore", windowsHide: true });
+const browser = spawn(process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe", ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required", "--remote-debugging-port=9335", `--user-data-dir=${artifacts}/chrome-${process.pid}`, "about:blank"], { stdio: "ignore", windowsHide: true });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-let socket, nextId = 0;
+let socket, nextId = 0, closing = false;
 const pending = new Map();
 const measurements = [];
 function send(method, params = {}) {
@@ -45,7 +45,7 @@ try {
   socket = new WebSocket(endpoint);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   socket.onmessage = ({ data }) => { const packet = JSON.parse(data), p = pending.get(packet.id); if (!p) return; pending.delete(packet.id); if (packet.error) p.reject(new Error(packet.error.message)); else p.resolve(packet); };
-  socket.onclose = () => { for (const p of pending.values()) p.reject(new Error("Chrome DevTools connection closed")); pending.clear(); };
+  socket.onclose = () => { if (!closing) { for (const p of pending.values()) p.reject(new Error("Chrome DevTools connection closed")); pending.clear(); } };
   await send("Page.enable"); await send("Runtime.enable");
   await navigate("/");
   await evaluate("localStorage.clear()");
@@ -55,14 +55,22 @@ try {
     await waitFor("document.querySelector('.home-catalogue h2')");
     const metrics = await evaluate(`(() => {
       const rect = el => { const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}; };
-      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),featuredChannels:!!document.querySelector('section[aria-label="Featured Channels"]')};
+      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),featuredChannels:!!document.querySelector('section[aria-label="Featured Channels"]'),channelCount:document.querySelectorAll('.channel-rail a[href^="/channels/"]').length,heroArt:rect(document.querySelector('.hero-artwork')),heroCopy:rect(document.querySelector('.hero-copy')),heroImageFit:getComputedStyle(document.querySelector('.hero-artwork-image img')).objectFit,infoRadius:getComputedStyle(document.querySelector('.hero-info-action')).borderRadius};
     })()`);
     assert.ok(metrics.documentWidth <= width, `${name} page overflow`);
     assert.equal(metrics.featuredChannels, false);
-    assert.deepEqual(metrics.titles, ["New Releases", "Movies", "TV Shows", "Documentaries", "Animations"]);
+    assert.equal(metrics.channelCount, 10);
+    assert.deepEqual(metrics.titles, ["Channels", "New Releases", "Movies", "TV Shows", "Documentaries", "Animations"]);
+    if (width >= 1024) { assert.ok(metrics.heroArt.x >= width * .4 && metrics.heroArt.x <= width * .44); assert.equal(metrics.heroImageFit, 'contain'); assert.equal(metrics.infoRadius, '0px'); }
     assert.ok(metrics.logo.x + metrics.logo.width <= metrics.search.x, "Header logo and controls do not overlap");
     assert.ok(metrics.logo.width > metrics.signIn.width, "Brand is larger than sign in");
     await screenshot(`${name}-home`);
+    if (name === 'desktop-1440') {
+      await waitFor("document.querySelector('.hero-trailer video')?.readyState >= 2 && !document.querySelector('.hero-trailer video')?.paused", 12000);
+      await waitFor("getComputedStyle(document.querySelector('.hero-trailer')).opacity === '1'");
+      assert.deepEqual(await evaluate("(() => { const r = document.querySelector('.hero-artwork').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()"), metrics.heroArt);
+      console.log('Hero trailer playback and stable media region passed');
+    }
     await evaluate("document.querySelector('footer').scrollIntoView({block:'end'})");
     await waitFor("document.querySelector('footer img')?.naturalWidth > 0");
     await delay(300);
@@ -79,4 +87,4 @@ try {
 } catch (error) {
   if (socket?.readyState === WebSocket.OPEN) { console.log(await evaluate("({url:location.href,text:document.body.innerText.slice(0,500)})")); await screenshot("failure"); }
   throw error;
-} finally { socket?.close(); browser.kill(); }
+} finally { closing = true; socket?.close(); browser.kill(); browser.unref(); }

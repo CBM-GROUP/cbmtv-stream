@@ -32,8 +32,8 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname === "/api/channels/") return send(res, 200, list(channels));
   if (url.pathname === "/api/homepage/") return send(res, 200, { sections: [
-    { id: 'featured_hero', label: 'Featured Hero', enabled: true, items: [items[0]] },
-    { id: 'featured_channels', label: 'Featured Channels', enabled: true, items: channels },
+    { id: 'featured_hero', label: 'Featured Hero', enabled: true, items: [{ ...items[0], trailer_link: `${origin}/media/sample.mp4` }] },
+    { id: 'featured_channels', label: 'Channels', enabled: true, items: channels },
     { id: 'new_releases', label: 'New Releases', enabled: true, items: items.slice(0, 4) },
     { id: 'movies', label: 'Movies', enabled: true, items: items.filter(item => item.content_type === 'movie') },
     { id: 'tv_shows', label: 'TV Shows', enabled: true, items: items.filter(item => item.content_type === 'series') },
@@ -49,7 +49,7 @@ http.createServer(async (req, res) => {
     return send(res, 200, { query: q, count: hits.length, hits, source: "database" });
   }
   if (url.pathname === "/api/content/adverts/") return send(res, 200, [{ id: 1, advert_name: "River Journey", advert_link: "/programs/1", advert_thumbnail: items[0].thumbnail, show_in_hero: true }]);
-  if (url.pathname === "/api/content/hero-settings/") return send(res, 200, { image_duration_seconds: 20 });
+  if (url.pathname === "/api/content/hero-settings/") return send(res, 200, { image_duration_seconds: 5, display_mode: 'thumbnail_trailer', trailer_preview_seconds: 20 });
   if (url.pathname === "/api/accounts/profile/") return send(res, req.headers.authorization ? 200 : 401, req.headers.authorization ? user : {});
   if (url.pathname === "/api/accounts/login/") return send(res, 200, { user, access: "fixture-access", refresh: "fixture-refresh" });
   if (["/api/content/seasons/", "/api/content/episodes/", "/api/content/miniseries/"].includes(url.pathname)) return send(res, 200, list([]));

@@ -33,11 +33,11 @@ test('homepage restores the channel rail without moving editorial or paid sectio
   ];
   const tree = context.exports.HomeSections({ homepage: { sections }, authenticated: false });
   const visible = tree.props.children.filter(Boolean);
-  assert.deepEqual(visible.map(node => typeof node.type === 'function' ? node.type.name : node.type), ['HomeHero', 'FeaturedChannels', 'SponsoredPlacement', 'ContentRail']);
+  assert.deepEqual(visible.map(node => typeof node.type === 'function' ? node.type.name : node.type), ['HomeHero', 'Channels', 'SponsoredPlacement', 'ContentRail']);
   assert.equal(visible[0].props.settings.image_duration_seconds, 5);
   assert.equal(visible[2].props.context, 'homepage');
   const rail = visible[1].type(visible[1].props);
-  assert.equal(rail.props['aria-label'], 'Featured Channels');
+  assert.equal(rail.props['aria-label'], 'Channels');
   assert.equal(rail.props.children[1].props['aria-label'], 'Channel carousel');
   assert.equal(rail.props.children[1].props.children[0].props.href, '/channels/1');
 });
