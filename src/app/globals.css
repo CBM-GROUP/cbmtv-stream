@@ -340,6 +340,36 @@ body {
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+/* Homepage hero: preserve the tablet composition while refining the ends. */
+.hero-current-slide .hero-artwork { animation: hero-reveal .45s ease-out both; }
+.hero-trailer { animation: hero-reveal .5s ease-out both; }
+@keyframes hero-reveal { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 767px) {
+  .home-hero-slide { height: clamp(360px, 110vw, 470px); }
+  .home-hero { padding-bottom: 44px; }
+  .hero-artwork :is(img, video) { object-position: 56% 32%; }
+  .hero-copy { left: var(--page-gutter); right: var(--page-gutter); bottom: 1rem; max-width: none; }
+  .hero-eyebrow { display: inline; font-size: .65rem; }
+  .hero-title { margin-top: .4rem; max-width: 20ch; font-size: clamp(1.7rem, 7vw, 2.25rem); line-height: 1.08; }
+  .hero-metadata { display: block; margin-top: .5rem; line-height: 1.35; }
+  .hero-description { margin-top: .4rem; max-width: 35ch; font-size: .8rem; -webkit-line-clamp: 2; }
+  .hero-actions { display: flex; margin-top: .85rem; gap: .5rem; }
+  .hero-actions a { min-height: 44px; padding-inline: .9rem; }
+  .hero-shade-horizontal { background: linear-gradient(90deg, rgba(0,0,0,.3), transparent 90%); }
+  .hero-shade-vertical { background: linear-gradient(0deg, rgba(0,0,0,.96), rgba(0,0,0,.7) 28%, transparent 78%); }
+}
+@media (min-width: 1024px) {
+  .home-hero-slide { height: clamp(540px, 72svh, 760px); }
+  .hero-artwork { left: 34%; }
+  .hero-artwork :is(img, video) { object-position: 55% center; }
+  .hero-shade-horizontal { background: linear-gradient(90deg, #080b0b 0%, rgba(8,11,11,.98) 22%, rgba(8,11,11,.84) 40%, rgba(8,11,11,.42) 62%, transparent 100%); }
+  .hero-copy { width: 42%; max-width: 37rem; gap: .1rem; }
+  .hero-title { max-width: 12ch; font-size: clamp(2.6rem, 4.4vw, 4.6rem); line-height: 1.08; letter-spacing: -.035em; }
+  .hero-metadata { margin-top: .8rem; }
+  .hero-description { margin-top: .8rem; max-width: 32rem; }
+  .hero-actions { margin-top: 1.25rem; }
+}
+
 .player-frame {
   width: 100%;
   max-width: 2400px;

@@ -9,7 +9,8 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProgramCard } from "./ProgramCard";
-import { TrackedVideo } from "./TrackedVideo";
+import { AdvertisingVideo } from "./AdvertisingVideo";
+import { SponsoredPlacement } from './SponsoredPlacement';
 import { TrackedYouTube } from "./TrackedYouTube";
 import { PlayerOptions } from "./PlayerOptions";
 import { initialPlayback, playbackTransition } from "@/lib/playback-flow";
@@ -484,8 +485,11 @@ export default function ProgramDetail({ program, intent }: Props) {
             <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}:${user?.id ?? 'anonymous'}`} videoId={youtubeId} startSeconds={startSeconds} onProgress={trackProgress} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
           )}
           {urlType === "direct" && (
-            <TrackedVideo
-              key={`${currentVideoUrl}:${playbackSession}:${user?.id ?? 'anonymous'}`}
+            <AdvertisingVideo
+              key={`${playbackType}:${playbackSession}:${user?.id ?? 'anonymous'}:${authorization.grant?.session_id ?? ''}`}
+              advertisingEnabled={playbackType === 'streaming' && authorization.grant?.advertising_enabled}
+              viewerId={user?.id}
+              playbackSessionId={authorization.grant?.session_id}
               src={currentVideoUrl as string}
               sourceType={playbackType === 'streaming' ? authorization.grant?.type : undefined}
               withCredentials={playbackType === 'streaming' && authorization.grant?.with_credentials}
@@ -527,6 +531,7 @@ export default function ProgramDetail({ program, intent }: Props) {
         </div>
       </div>
       <aside className="watch-sidebar" aria-label="Movie information">
+        <SponsoredPlacement placement="content_sponsor" context="content" content={program.id} />
         <div className="flex items-start gap-4 border-b border-white/10 pb-6">
           <SafeImage
             src={program.thumbnail}

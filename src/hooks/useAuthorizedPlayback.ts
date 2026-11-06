@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { viewerRequest } from '@/services/viewer-api';
 
-type Grant = { url: string; type: 'hls' | 'progressive'; with_credentials: boolean; expires_at: string; session_id?: string };
+type Grant = { url: string; type: 'hls' | 'progressive'; with_credentials: boolean; expires_at: string; session_id?: string; advertising_enabled?: boolean };
 
 export function useAuthorizedPlayback(userId: number | undefined, contentId: number, episode: number | undefined, miniseries: number | undefined, enabled: boolean) {
   const [result, setResult] = useState<{ key: string; grant?: Grant; message?: string }>({ key: '' });

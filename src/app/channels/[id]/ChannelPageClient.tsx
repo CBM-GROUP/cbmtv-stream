@@ -4,6 +4,7 @@ import { SafeImage } from "@/components/SafeImage";
 import { useContent } from '@/hooks/useContent';
 import type { Channel, Program, ProgramCardItem } from '@/types';
 import { useMemo } from 'react';
+import { SponsoredPlacement } from '@/components/SponsoredPlacement';
 
 /**
  * The grid filters on content_type, so carry it alongside the card fields.
@@ -75,6 +76,7 @@ export default function ChannelPageClient({ channel }: Props) {
       </div>
 
       <section className="mt-8">
+        <SponsoredPlacement placement="channel_sponsor" context="channel" channel={channel.id} />
         <ProgramGrid programs={channelPrograms} filters={filters} />
       </section>
     </div>
