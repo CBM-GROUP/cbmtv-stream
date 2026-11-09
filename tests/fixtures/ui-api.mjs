@@ -18,6 +18,7 @@ const items = ["movie", "series", "documentary", "animations", "miniseries", "or
 })));
 const list = (results) => ({ count: results.length, next: null, previous: null, results });
 const user = { id: 1, name: "Test Viewer", email: "viewer@example.test" };
+let heroDisplayMode = 'thumbnail_trailer';
 const send = (res, status, data) => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(JSON.stringify(data)); };
 http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -26,13 +27,22 @@ http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return send(res, 204, {});
   const url = new URL(req.url, origin);
   if (url.pathname === "/media/sample.mp4") {
-    const data = await readFile(new URL("../../.next/ui-corrections/sample.mp4", import.meta.url));
+    const data = await readFile(new URL("../../public/videos/dance.mp4", import.meta.url));
     res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
     return res.end(data);
   }
+  if (url.pathname === '/__fixture/hero-mode') {
+    heroDisplayMode = url.searchParams.get('value') === 'thumbnails_only' ? 'thumbnails_only' : 'thumbnail_trailer';
+    return send(res, 200, { display_mode: heroDisplayMode });
+  }
   if (url.pathname === "/api/channels/") return send(res, 200, list(channels));
   if (url.pathname === "/api/homepage/") return send(res, 200, { sections: [
-    { id: 'featured_hero', label: 'Featured Hero', enabled: true, items: [{ ...items[0], trailer_link: `${origin}/media/sample.mp4` }] },
+    { id: 'featured_hero', label: 'Featured Hero', enabled: true, items: [
+      { ...items[0], trailer_link: `${origin}/media/sample.mp4` },
+      { ...items[1], thumbnail: '/images/missing-hero-artwork.png', trailer_link: `${origin}/media/missing.mp4` },
+      { ...items[2] },
+      { ...items[3], trailer_link: 'https://youtu.be/dQw4w9WgXcQ' },
+    ] },
     { id: 'featured_channels', label: 'Channels', enabled: true, items: channels },
     { id: 'new_releases', label: 'New Releases', enabled: true, items: items.slice(0, 4) },
     { id: 'movies', label: 'Movies', enabled: true, items: items.filter(item => item.content_type === 'movie') },
@@ -49,7 +59,7 @@ http.createServer(async (req, res) => {
     return send(res, 200, { query: q, count: hits.length, hits, source: "database" });
   }
   if (url.pathname === "/api/content/adverts/") return send(res, 200, [{ id: 1, advert_name: "River Journey", advert_link: "/programs/1", advert_thumbnail: items[0].thumbnail, show_in_hero: true }]);
-  if (url.pathname === "/api/content/hero-settings/") return send(res, 200, { image_duration_seconds: 5, display_mode: 'thumbnail_trailer', trailer_preview_seconds: 20 });
+  if (url.pathname === "/api/content/hero-settings/") return send(res, 200, { image_duration_seconds: 5, display_mode: heroDisplayMode, trailer_preview_seconds: 6 });
   if (url.pathname === "/api/accounts/profile/") return send(res, req.headers.authorization ? 200 : 401, req.headers.authorization ? user : {});
   if (url.pathname === "/api/accounts/login/") return send(res, 200, { user, access: "fixture-access", refresh: "fixture-refresh" });
   if (["/api/content/seasons/", "/api/content/episodes/", "/api/content/miniseries/"].includes(url.pathname)) return send(res, 200, list([]));
