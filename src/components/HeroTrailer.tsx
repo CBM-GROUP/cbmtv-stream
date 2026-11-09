@@ -17,18 +17,20 @@ export function trailerSource(url: string): { kind: 'youtube' | 'hls' | 'video' 
   } catch { return { kind: 'invalid' }; }
 }
 
-export function HeroTrailer({ url, paused, onEnded, onError }: { url: string; paused: boolean; onEnded: () => void; onError: () => void }) {
+export function HeroTrailer({ url, paused, muted, onEnded, onError }: { url: string; paused: boolean; muted: boolean; onEnded: () => void; onError: () => void }) {
   const source = trailerSource(url);
   const videoRef = useRef<HTMLVideoElement>(null);
   const youtubeRef = useRef<HTMLDivElement>(null);
   const endedRef = useRef(onEnded);
   const errorRef = useRef(onError);
   const pausedRef = useRef(paused);
+  const mutedRef = useRef(muted);
   const playerRef = useRef<YouTubePlayer | null>(null);
   const readyRef = useRef(false);
   endedRef.current = onEnded;
   errorRef.current = onError;
   pausedRef.current = paused;
+  mutedRef.current = muted;
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function HeroTrailer({ url, paused, onEnded, onError }: { url: string; pa
             videoId: source.videoId!, width: '100%', height: '100%',
             playerVars: { autoplay: 1, controls: 0, playsinline: 1, origin: window.location.origin },
             events: {
-              onReady: () => { if (!disposed) { readyRef.current = true; playerRef.current = player; player?.mute(); if (!pausedRef.current) player?.playVideo(); } },
+              onReady: () => { if (!disposed) { readyRef.current = true; playerRef.current = player; if (mutedRef.current) player?.mute(); else player?.unMute(); if (!pausedRef.current) player?.playVideo(); } },
               onStateChange: ({ data }) => { if (!disposed) { if (data === 1) { setPlaying(true); if (pausedRef.current) player?.pauseVideo(); } if (data === 0 && !pausedRef.current) endedRef.current(); } },
               onAutoplayBlocked: fail,
               onError: fail,
@@ -108,7 +110,14 @@ export function HeroTrailer({ url, paused, onEnded, onError }: { url: string; pa
     }
   }, [paused, source.kind]);
 
+  useEffect(() => {
+    if (source.kind === 'youtube') {
+      if (muted) playerRef.current?.mute();
+      else playerRef.current?.unMute();
+    } else if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted, source.kind]);
+
   return <div className={`hero-trailer absolute inset-0 ${playing ? 'is-playing' : ''}`}>
-    {source.kind === 'youtube' ? <div ref={youtubeRef} className="h-full w-full" /> : <video ref={videoRef} className="h-full w-full object-cover" muted playsInline preload="none" onPlaying={() => { setPlaying(true); if (pausedRef.current) videoRef.current?.pause(); }} onEnded={() => { if (!pausedRef.current) endedRef.current(); }} onError={() => errorRef.current()} />}
+    {source.kind === 'youtube' ? <div ref={youtubeRef} className="h-full w-full" /> : <video ref={videoRef} className="h-full w-full object-cover" muted={muted} playsInline preload="none" onPlaying={() => { setPlaying(true); if (pausedRef.current) videoRef.current?.pause(); }} onEnded={() => { if (!pausedRef.current) endedRef.current(); }} onError={() => errorRef.current()} />}
   </div>;
 }

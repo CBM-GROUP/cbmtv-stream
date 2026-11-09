@@ -3,7 +3,7 @@
 import { SafeImage } from '@/components/SafeImage';
 import type { Program } from '@/types';
 import { playbackDestination } from '@/lib/auth-return';
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defaultHeroSettings, type HeroSettings } from '@/hooks/useHeroSettings';
@@ -12,6 +12,7 @@ import { HeroTrailer } from './HeroTrailer';
 export function HomeHero({ titles, loading = false, settings = defaultHeroSettings }: { titles: Program[]; loading?: boolean; settings?: HeroSettings }) {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const [visible, setVisible] = useState(true);
   const [phase, setPhase] = useState<'thumbnail' | 'trailer'>('thumbnail');
   const [requested, setRequested] = useState<number | null>(null);
@@ -97,15 +98,16 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
       {!loading && <Link href="/programs" className="hero-primary-action mt-6 inline-flex rounded-lg bg-teal-500 px-6 py-3 font-semibold text-black">Browse content</Link>}</div>
   </section>;
   const title = titles[active] ?? titles[0];
+  const hasTrailer = settings.display_mode === 'thumbnail_trailer' && failedTrailer !== title.id && Boolean(title.trailer_link);
   const showTrailer = phase === 'trailer' && settings.display_mode === 'thumbnail_trailer' && failedTrailer !== title.id && Boolean(title.trailer_link);
-  return <section className="home-hero group relative bg-black" aria-label="Featured content" aria-roledescription="carousel">
+  return <section className="home-hero group relative bg-black" data-has-video={hasTrailer} aria-label="Featured content" aria-roledescription="carousel">
     <div className="hero-stage">
       {titles.map((item, index) => <div key={item.id} className={`home-hero-slide hero-media-slide ${index === active ? 'is-active' : ''}`} aria-hidden="true">
         <div className="hero-artwork"><div className="hero-artwork-image"><SafeImage fill src={item.backdrop || item.thumbnail} alt="" className="object-cover" sizes="(min-width: 1024px) 65vw, 100vw" priority={index === 0} loading={index === 0 || index === active || index === requested || index === (active + 1) % titles.length ? 'eager' : 'lazy'} onLoad={() => {
           readyRef.current.add(`${item.id}:${item.backdrop || item.thumbnail}`);
           if (requestedRef.current === index) commit(index);
         }} /></div>
-          {index === active && showTrailer && <HeroTrailer key={item.id} url={item.trailer_link!} paused={paused || !visible || requested !== null} onEnded={() => { if (activeRef.current === index && requestedRef.current === null) advance(); }} onError={() => { if (activeRef.current === index) { setFailedTrailer(item.id); setPhase('thumbnail'); } }} />}
+          {index === active && showTrailer && <HeroTrailer key={item.id} url={item.trailer_link!} paused={paused || !visible || requested !== null} muted={!soundEnabled} onEnded={() => { if (activeRef.current === index && requestedRef.current === null) advance(); }} onError={() => { if (activeRef.current === index) { setFailedTrailer(item.id); setPhase('thumbnail'); } }} />}
         </div>
       </div>)}
       <div className="hero-shade-horizontal pointer-events-none absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent" /><div className="hero-shade-vertical pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-transparent to-black/20" />
@@ -119,7 +121,8 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
       <button type="button" aria-label={paused ? 'Resume featured carousel' : 'Pause featured carousel'} onClick={() => setPaused((value) => !value)} className="hero-playback-control absolute bottom-4 left-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white">{paused ? <Play size={17} /> : <Pause size={17} />}</button>
       <button type="button" onClick={() => select((active - 1 + titles.length) % titles.length)} aria-label="Previous featured slide" className="hero-slide-prev absolute right-16 bottom-4 z-20 hidden size-11 items-center justify-center rounded-full bg-black/50 text-white md:flex"><ChevronLeft /></button>
       <button type="button" onClick={advance} aria-label="Next featured slide" className="hero-slide-next absolute right-4 bottom-4 z-20 hidden size-11 items-center justify-center rounded-full bg-black/50 text-white md:flex"><ChevronRight /></button>
-      <div className="hero-pagination h-scroll" aria-label="Choose featured slide">{titles.map((item, index) => <button key={item.id} type="button" onClick={() => select(index)} aria-label={`Show featured slide ${index + 1}`} aria-current={index === active ? 'true' : undefined} className="flex size-11 shrink-0 items-center justify-center rounded-full"><span className={`h-1.5 rounded-full ${index === active ? 'w-7 bg-white' : 'w-1.5 bg-white/50'}`} /></button>)}</div>
+      <div className="hero-pagination h-scroll" aria-label="Choose featured slide">{titles.map((item, index) => <button key={item.id} type="button" onClick={() => select(index)} aria-label={`Show featured slide ${index + 1}`} aria-current={index === active ? 'true' : undefined} className="flex shrink-0 items-center justify-center rounded-full"><span className={`h-1.5 rounded-full ${index === active ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`} /></button>)}</div>
     </>}
+    {hasTrailer && <button type="button" aria-label={soundEnabled ? 'Mute trailer' : 'Unmute trailer'} onClick={() => setSoundEnabled(value => !value)} className="hero-audio-control absolute bottom-4 right-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white">{soundEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}</button>}
   </section>;
 }

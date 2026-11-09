@@ -53,11 +53,15 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 768 });
     await navigate("/");
     await waitFor("document.querySelector('.home-catalogue h2')");
+    await waitFor("document.querySelector('.hero-media-slide.is-active img')?.naturalWidth > 0");
     const metrics = await evaluate(`(() => {
       const rect = el => { const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}; };
-      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),channelCount:document.querySelectorAll('.channel-rail a[href^="/channels/"]').length,heroArt:rect(document.querySelector('.hero-artwork')),heroCopy:rect(document.querySelector('.hero-copy.is-active')),heroImageFit:getComputedStyle(document.querySelector('.hero-artwork-image img')).objectFit};
+      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),channelCount:document.querySelectorAll('.channel-rail a[href^="/channels/"]').length,heroBounds:rect(document.querySelector('.home-hero')),heroArt:rect(document.querySelector('.hero-artwork')),heroCopy:rect(document.querySelector('.hero-copy.is-active')),heroImageFit:getComputedStyle(document.querySelector('.hero-artwork-image img')).objectFit,pagination:rect(document.querySelector('.hero-pagination')),dotCenters:[...document.querySelectorAll('.hero-pagination button')].map(x=>{const r=x.getBoundingClientRect();return r.x+r.width/2}),heroSeeAll:document.querySelector('.home-hero')?.textContent.includes('See all')};
     })()`);
     assert.ok(metrics.documentWidth <= width, `${name} page overflow`);
+    assert.equal(metrics.heroSeeAll, false, 'hero has no See all action');
+    assert.ok(Math.abs(metrics.pagination.x + metrics.pagination.width / 2 - (metrics.heroBounds.x + metrics.heroBounds.width / 2)) < 2, `${name} pagination centered`);
+    assert.ok(metrics.dotCenters.every((center, index) => index === 0 || center - metrics.dotCenters[index - 1] <= 31), `${name} pagination compact`);
     assert.equal(metrics.channelCount, 10);
     assert.deepEqual(metrics.titles, ["Channels", "New Releases", "Movies", "TV Shows", "Documentaries", "Animations"]);
     if (width >= 1024) { assert.ok(Math.abs(metrics.heroArt.x / width - .35) < .01); assert.ok(Math.abs(metrics.heroArt.width / width - .65) < .01); assert.equal(metrics.heroImageFit, 'cover'); assert.ok(metrics.heroCopy.x + metrics.heroCopy.width <= metrics.heroArt.x); }
@@ -67,8 +71,15 @@ try {
     if (name === 'desktop-1440') {
       await waitFor("document.querySelector('.hero-trailer video')?.readyState >= 2 && !document.querySelector('.hero-trailer video')?.paused", 12000);
       await waitFor("getComputedStyle(document.querySelector('.hero-trailer')).opacity === '1'");
+      await screenshot('desktop-1440-trailer');
       assert.deepEqual(await evaluate("(() => { const r = document.querySelector('.hero-artwork').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()"), metrics.heroArt);
       assert.equal(await evaluate("getComputedStyle(document.querySelector('.hero-shade-horizontal')).zIndex"), '2');
+      assert.equal(await evaluate("document.querySelector('.hero-trailer video').muted"), true, 'trailer starts muted');
+      const soundStart = await evaluate("(() => { const video = document.querySelector('.hero-trailer video'); video.dataset.soundProbe = 'same-element'; window.__oldHeroVideo = video; return video.currentTime; })()");
+      await evaluate("document.querySelector('.hero-audio-control').click()");
+      assert.equal(await evaluate("document.querySelector('.hero-trailer video').muted"), false, 'sound control unmutes direct video');
+      assert.equal(await evaluate("document.querySelector('.hero-trailer video').dataset.soundProbe"), 'same-element', 'sound toggle keeps the video element');
+      await waitFor(`document.querySelector('.hero-trailer video')?.currentTime > ${soundStart + .3}`);
       const beforePause = await evaluate("(() => { const video = document.querySelector('.hero-trailer video'); video.dataset.pauseProbe = 'same-element'; return video.currentTime; })()");
       await evaluate("document.querySelector('.hero-playback-control').click()");
       await delay(1300);
@@ -80,6 +91,7 @@ try {
       await delay(1800);
       assert.equal(await evaluate("document.querySelector('.hero-copy.is-active .hero-title').textContent"), 'River Journey 1');
       await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 2'", 7000);
+      assert.ok(await evaluate("window.__oldHeroVideo.paused && !window.__oldHeroVideo.isConnected"), 'previous trailer stops when featured item changes');
       await waitFor("document.querySelector('.hero-media-slide.is-active img')?.naturalWidth > 0");
       assert.ok((await evaluate("document.querySelector('.hero-media-slide.is-active img').currentSrc")).includes('cbmtvwhitelogo'), 'broken artwork uses fallback');
       assert.ok((await evaluate("document.querySelector('.hero-copy.is-active a.hero-primary-action').getAttribute('href')")).includes('/programs/2?play=1'));
@@ -95,15 +107,17 @@ try {
       await evaluate("document.querySelector('.hero-slide-prev').click()");
       await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 2'");
       await evaluate(`(() => {
-        window.__heroYT = { creates: 0, plays: 0, pauses: 0 };
+        window.__heroYT = { creates: 0, plays: 0, pauses: 0, mutes: 0, unmutes: 0 };
         window.YT = { Player: class {
           constructor(target, options) {
             window.__heroYT.creates++;
+            window.__heroYT.videoId = options.videoId;
             this.options = options;
             target.replaceWith(document.createElement('iframe'));
             setTimeout(() => options.events.onReady(), 0);
           }
-          mute() {}
+          mute() { window.__heroYT.mutes++; }
+          unMute() { window.__heroYT.unmutes++; }
           playVideo() { window.__heroYT.plays++; this.options.events.onStateChange({ data: 1 }); }
           pauseVideo() { window.__heroYT.pauses++; this.options.events.onStateChange({ data: 2 }); }
           destroy() {}
@@ -112,6 +126,14 @@ try {
       await evaluate("document.querySelectorAll('.hero-pagination button')[3].click()");
       await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'City Stories 1'");
       await waitFor("document.querySelector('.hero-trailer iframe')", 8000);
+      assert.equal(await evaluate("window.__heroYT.videoId"), 'dQw4w9WgXcQ', 'active item supplies its own trailer');
+      assert.ok(await evaluate("window.__heroYT.unmutes > 0"), 'sound preference carries to YouTube');
+      const playsBeforeSound = await evaluate("window.__heroYT.plays");
+      await evaluate("document.querySelector('.hero-audio-control').click()");
+      assert.ok(await evaluate("window.__heroYT.mutes > 0"), 'YouTube sound control mutes');
+      assert.equal(await evaluate("window.__heroYT.plays"), playsBeforeSound, 'YouTube sound toggle does not restart playback');
+      await evaluate("document.querySelector('.hero-audio-control').click()");
+      assert.ok(await evaluate("window.__heroYT.unmutes > 1"), 'YouTube sound control unmutes');
       await evaluate("document.querySelector('.hero-playback-control').click()");
       await delay(250);
       assert.ok(await evaluate("window.__heroYT.pauses > 0"), 'YouTube player pauses');
