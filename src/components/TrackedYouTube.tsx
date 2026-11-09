@@ -9,6 +9,7 @@ export type YouTubePlayer = {
   playVideo: () => void;
   pauseVideo: () => void;
   mute: () => void;
+  unMute: () => void;
   destroy: () => void;
 };
 export type YouTubeApi = { Player: new (element: HTMLElement, options: {
