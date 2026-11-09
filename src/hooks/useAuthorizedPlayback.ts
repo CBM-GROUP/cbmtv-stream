@@ -16,11 +16,13 @@ export function useAuthorizedPlayback(userId: number | undefined, contentId: num
     let timer: ReturnType<typeof setTimeout> | undefined;
     let processingPolls = 0;
     let sessionId: string | undefined;
+    let activeGrant: Grant | undefined;
     const authorize = async () => {
       try {
         const { data } = await viewerRequest<Grant>(userId, { method: 'POST', url: `/api/content/${contentId}/playback/`,
           data: { episode, miniseries, session_id: sessionId }, withCredentials: true, signal: controller.signal, timeout: 20000 });
         if (controller.signal.aborted) return;
+        activeGrant = data;
         setResult({ key, grant: data });
         sessionId = data.session_id;
         // Cookies renew without changing the HLS URL or restarting the player.
@@ -28,10 +30,18 @@ export function useAuthorizedPlayback(userId: number | undefined, contentId: num
         if (Number.isFinite(delay)) timer = setTimeout(() => void authorize(), Math.max(10000, delay));
       } catch (cause) {
         if (controller.signal.aborted) return;
+        const status = axios.isAxiosError(cause) ? cause.response?.status : undefined;
+        const expiresAt = activeGrant ? Date.parse(activeGrant.expires_at) : NaN;
+        // A transient renewal outage must not unload media while its grant is valid.
+        if (activeGrant && (!status || status === 429 || status >= 500) && expiresAt > Date.now()) {
+          timer = setTimeout(() => void authorize(), Math.max(1000, Math.min(5000, expiresAt - Date.now())));
+          return;
+        }
+        activeGrant = undefined;
         const state = axios.isAxiosError(cause) ? cause.response?.data?.state : undefined;
         const processing = ['uploaded', 'queued', 'processing'].includes(state);
         setResult({ key, message: processing ? 'This video is processing. Playback will become available when it is ready.' :
-          axios.isAxiosError(cause) && cause.response?.status === 401 ? 'Your session expired. Sign in to continue.' : 'Playback is unavailable. Please try again.' });
+          status === 401 ? 'Your session expired. Sign in to continue.' : 'Playback is unavailable. Please try again.' });
         if (processing && processingPolls++ < 12) timer = setTimeout(() => void authorize(), 5000);
       }
     };
