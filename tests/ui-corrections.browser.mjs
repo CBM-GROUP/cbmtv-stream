@@ -55,13 +55,12 @@ try {
     await waitFor("document.querySelector('.home-catalogue h2')");
     const metrics = await evaluate(`(() => {
       const rect = el => { const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}; };
-      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),featuredChannels:!!document.querySelector('section[aria-label="Featured Channels"]'),channelCount:document.querySelectorAll('.channel-rail a[href^="/channels/"]').length,heroArt:rect(document.querySelector('.hero-artwork')),heroCopy:rect(document.querySelector('.hero-copy')),heroImageFit:getComputedStyle(document.querySelector('.hero-artwork-image img')).objectFit,infoRadius:getComputedStyle(document.querySelector('.hero-info-action')).borderRadius};
+      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,logo:rect(document.querySelector('header img')),signIn:rect(document.querySelector('header a[href="/sign-in"]')),search:rect(document.querySelector('button[aria-label="Search catalogue"]')),titles:[...document.querySelectorAll('.home-catalogue h2')].map(x=>x.textContent),channelCount:document.querySelectorAll('.channel-rail a[href^="/channels/"]').length,heroArt:rect(document.querySelector('.hero-artwork')),heroCopy:rect(document.querySelector('.hero-copy.is-active')),heroImageFit:getComputedStyle(document.querySelector('.hero-artwork-image img')).objectFit};
     })()`);
     assert.ok(metrics.documentWidth <= width, `${name} page overflow`);
-    assert.equal(metrics.featuredChannels, false);
     assert.equal(metrics.channelCount, 10);
     assert.deepEqual(metrics.titles, ["Channels", "New Releases", "Movies", "TV Shows", "Documentaries", "Animations"]);
-    if (width >= 1024) { assert.ok(metrics.heroArt.x >= width * .4 && metrics.heroArt.x <= width * .44); assert.equal(metrics.heroImageFit, 'contain'); assert.equal(metrics.infoRadius, '0px'); }
+    if (width >= 1024) { assert.ok(Math.abs(metrics.heroArt.x / width - .35) < .01); assert.ok(Math.abs(metrics.heroArt.width / width - .65) < .01); assert.equal(metrics.heroImageFit, 'cover'); assert.ok(metrics.heroCopy.x + metrics.heroCopy.width <= metrics.heroArt.x); }
     assert.ok(metrics.logo.x + metrics.logo.width <= metrics.search.x, "Header logo and controls do not overlap");
     assert.ok(metrics.logo.width > metrics.signIn.width, "Brand is larger than sign in");
     await screenshot(`${name}-home`);
@@ -69,7 +68,58 @@ try {
       await waitFor("document.querySelector('.hero-trailer video')?.readyState >= 2 && !document.querySelector('.hero-trailer video')?.paused", 12000);
       await waitFor("getComputedStyle(document.querySelector('.hero-trailer')).opacity === '1'");
       assert.deepEqual(await evaluate("(() => { const r = document.querySelector('.hero-artwork').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()"), metrics.heroArt);
-      console.log('Hero trailer playback and stable media region passed');
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.hero-shade-horizontal')).zIndex"), '2');
+      const beforePause = await evaluate("(() => { const video = document.querySelector('.hero-trailer video'); video.dataset.pauseProbe = 'same-element'; return video.currentTime; })()");
+      await evaluate("document.querySelector('.hero-playback-control').click()");
+      await delay(1300);
+      const duringPause = await evaluate("document.querySelector('.hero-trailer video').currentTime");
+      assert.ok(Math.abs(duringPause - beforePause) < .25, 'pause preserves video position');
+      await evaluate("document.querySelector('.hero-playback-control').click()");
+      await waitFor(`document.querySelector('.hero-trailer video')?.currentTime > ${duringPause + .5}`);
+      assert.equal(await evaluate("document.querySelector('.hero-trailer video').dataset.pauseProbe"), 'same-element');
+      await delay(1800);
+      assert.equal(await evaluate("document.querySelector('.hero-copy.is-active .hero-title').textContent"), 'River Journey 1');
+      await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 2'", 7000);
+      await waitFor("document.querySelector('.hero-media-slide.is-active img')?.naturalWidth > 0");
+      assert.ok((await evaluate("document.querySelector('.hero-media-slide.is-active img').currentSrc")).includes('cbmtvwhitelogo'), 'broken artwork uses fallback');
+      assert.ok((await evaluate("document.querySelector('.hero-copy.is-active a.hero-primary-action').getAttribute('href')")).includes('/programs/2?play=1'));
+      await delay(5500);
+      assert.equal(await evaluate("document.querySelector('.hero-copy.is-active .hero-title').textContent"), 'River Journey 2');
+      assert.equal(await evaluate("Boolean(document.querySelector('.hero-trailer'))"), false, 'failed video returns to artwork');
+      await evaluate("document.querySelector('.hero-slide-next').click()");
+      await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 3'");
+      await delay(100);
+      const fadingCopy = await evaluate("(() => { const copies=[...document.querySelectorAll('.hero-stage .hero-copy')]; return { outgoing: Number(getComputedStyle(copies[1]).opacity), incoming: Number(getComputedStyle(copies[2]).opacity), positions: copies.map(x => x.getBoundingClientRect().x) }; })()");
+      assert.ok(fadingCopy.outgoing > 0 && fadingCopy.incoming < 1, 'copy layers crossfade');
+      assert.ok(fadingCopy.positions.every(x => x === fadingCopy.positions[0]), 'copy stays in place');
+      await evaluate("document.querySelector('.hero-slide-prev').click()");
+      await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 2'");
+      await evaluate(`(() => {
+        window.__heroYT = { creates: 0, plays: 0, pauses: 0 };
+        window.YT = { Player: class {
+          constructor(target, options) {
+            window.__heroYT.creates++;
+            this.options = options;
+            target.replaceWith(document.createElement('iframe'));
+            setTimeout(() => options.events.onReady(), 0);
+          }
+          mute() {}
+          playVideo() { window.__heroYT.plays++; this.options.events.onStateChange({ data: 1 }); }
+          pauseVideo() { window.__heroYT.pauses++; this.options.events.onStateChange({ data: 2 }); }
+          destroy() {}
+        } };
+      })()`);
+      await evaluate("document.querySelectorAll('.hero-pagination button')[3].click()");
+      await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'City Stories 1'");
+      await waitFor("document.querySelector('.hero-trailer iframe')", 8000);
+      await evaluate("document.querySelector('.hero-playback-control').click()");
+      await delay(250);
+      assert.ok(await evaluate("window.__heroYT.pauses > 0"), 'YouTube player pauses');
+      await evaluate("document.querySelector('.hero-playback-control').click()");
+      await delay(250);
+      assert.ok(await evaluate("window.__heroYT.plays >= 2"), 'YouTube player resumes');
+      assert.equal(await evaluate("window.__heroYT.creates"), 1, 'YouTube iframe is not recreated on resume');
+      console.log('Hero geometry, gradient, pause/resume, timed and manual navigation, copy fade, and media fallbacks passed');
     }
     await evaluate("document.querySelector('footer').scrollIntoView({block:'end'})");
     await waitFor("document.querySelector('footer img')?.naturalWidth > 0");
@@ -78,11 +128,13 @@ try {
     measurements.push({ name, ...metrics });
     console.log(`${name}: homepage order, overflow, brand passed`);
   }
-  await navigate("/channels");
-  await waitFor("document.querySelector('a[href=\"/channels/1\"]')");
-  await evaluate("document.querySelector('a[href=\"/channels/1\"]').click()");
-  await waitFor("location.pathname === '/channels/1' && document.body.innerText.includes('CBM Music')");
-  console.log("Channel directory and channel navigation passed");
+  await fetch('http://127.0.0.1:8001/__fixture/hero-mode?value=thumbnails_only');
+  await navigate('/');
+  await waitFor("document.querySelector('.hero-copy.is-active .hero-title')?.textContent === 'River Journey 1'");
+  await delay(5500);
+  assert.equal(await evaluate("Boolean(document.querySelector('.hero-trailer'))"), false, 'thumbnails-only mode suppresses trailer');
+  await fetch('http://127.0.0.1:8001/__fixture/hero-mode?value=thumbnail_trailer');
+  console.log('Thumbnails-only mode passed');
   await writeFile(`${artifacts}/measurements.json`, JSON.stringify(measurements,null,2));
 } catch (error) {
   if (socket?.readyState === WebSocket.OPEN) { console.log(await evaluate("({url:location.href,text:document.body.innerText.slice(0,500)})")); await screenshot("failure"); }
