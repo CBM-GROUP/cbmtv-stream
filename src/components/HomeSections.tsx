@@ -33,7 +33,7 @@ export function HomeSections({ homepage, authenticated }: { homepage: Homepage; 
   const { data: heroSettings } = useHeroSettings();
   return <div className="home-catalogue">{homepage.sections.filter((section) => section.enabled).map((section) => {
     if (section.source === 'advertising') return <SponsoredPlacement key={section.id} placement={section.id} context="homepage" />;
-    if (section.id === 'featured_hero') return <HomeHero key={section.id} titles={section.items} settings={heroSettings} />;
+    if (section.id === 'featured_hero') return <HomeHero key={section.id} titles={section.items} settings={heroSettings} insertion={homepage.advert_insertion} />;
     if (section.id === 'featured_channels') return <Channels key={section.id} channels={section.items} />;
     if (section.id === 'continue_watching') return authenticated ? <ContinueWatching key={section.id} items={section.items} /> : null;
     return <ContentRail key={section.id} title={section.label} items={section.items} />;

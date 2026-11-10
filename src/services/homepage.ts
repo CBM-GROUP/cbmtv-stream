@@ -13,7 +13,7 @@ export type HomepageSection = SectionBase & (
   { id: 'continue_watching'; items: Progress[] } |
   { id: 'featured_hero' | 'new_releases' | 'tv_shows' | 'movies' | 'documentaries' | 'animations'; items: Program[] }
 );
-export type Homepage = { sections: HomepageSection[] };
+export type Homepage = { sections: HomepageSection[]; advert_insertion?: { enabled: boolean; interval: number } };
 
 export async function getHomepage(userId: number | undefined, signal?: AbortSignal): Promise<Homepage> {
   if (userId) {
