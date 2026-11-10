@@ -5,9 +5,11 @@ export type FeaturedSlide = { kind: 'movie'; movie: Program } | { kind: 'advert'
 
 export function insertFeaturedAdverts(titles: Program[], adverts: Map<number, { session: AdSession; ad: Advertisement }>, interval: number): FeaturedSlide[] {
   const slides: FeaturedSlide[] = [];
-  titles.forEach((movie, index) => {
+  let movieCount = 0;
+  titles.forEach((movie) => {
     slides.push({ kind: 'movie', movie });
-    const after = index + 1;
+    if (movie.content_type !== 'movie') return;
+    const after = ++movieCount;
     const selection = adverts.get(after);
     if (after % interval === 0 && selection) slides.push({ kind: 'advert', ...selection, after });
   });

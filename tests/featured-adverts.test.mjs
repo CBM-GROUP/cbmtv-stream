@@ -11,7 +11,7 @@ const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKi
 const context = { exports: {}, require: () => { throw new Error('Unexpected runtime import'); } };
 vm.runInNewContext(code, context);
 const { insertFeaturedAdverts } = context.exports;
-const movies = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, title: `Movie ${index + 1}` }));
+const movies = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, title: `Movie ${index + 1}`, content_type: 'movie' }));
 const selected = new Map(Array.from({ length: 6 }, (_, index) => [index + 1, { session: { session: 'viewer' }, ad: { decision_id: `ad-${index + 1}` } }]));
 
 test('featured adverts follow each positive interval without reordering movies', () => {
@@ -27,4 +27,10 @@ test('missing eligible adverts leave no empty slides', () => {
   const slides = insertFeaturedAdverts(movies, new Map([[3, selected.get(3)]]), 3);
   assert.deepEqual(Array.from(slides, slide => slide.kind === 'movie' ? slide.movie.id : 'advert'), [1, 2, 3, 'advert', 4, 5, 6]);
   assert.equal(insertFeaturedAdverts(movies, new Map(), 3).length, movies.length);
+});
+
+test('episodic featured titles keep their place without advancing the movie interval', () => {
+  const titles = [movies[0], { id: 99, title: 'Series', content_type: 'tv_show' }, movies[1], movies[2]];
+  const slides = insertFeaturedAdverts(titles, selected, 2);
+  assert.deepEqual(Array.from(slides, slide => slide.kind === 'movie' ? slide.movie.id : 'advert'), [1, 99, 2, 'advert', 3]);
 });

@@ -17,14 +17,15 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
   const { user } = useAuth();
   const [adverts, setAdverts] = useState(new Map<number, { session: AdSession; ad: Advertisement }>());
   const interval = insertion?.interval && Number.isInteger(insertion.interval) && insertion.interval > 0 ? insertion.interval : 3;
+  const movieCount = titles.filter((title) => title.content_type === 'movie').length;
   const slides = useMemo(() => insertFeaturedAdverts(titles, insertion?.enabled ? adverts : new Map(), interval), [titles, adverts, interval, insertion?.enabled]);
   useEffect(() => {
     const controller = new AbortController();
     setAdverts(new Map());
-    if (insertion?.enabled && titles.length >= interval) {
+    if (insertion?.enabled && movieCount >= interval) {
       void openAdSession({ context: 'homepage' }, user?.id, controller.signal).then(async (session) => {
         const eligible = new Map<number, { session: AdSession; ad: Advertisement }>();
-        for (let after = interval; after <= titles.length && !controller.signal.aborted; after += interval) {
+        for (let after = interval; after <= movieCount && !controller.signal.aborted; after += interval) {
           const ad = await decideAd(session, 'homepage_featured_sponsor', `featured-${after}`, user?.id, controller.signal);
           if (ad?.kind === 'image') eligible.set(after, { session, ad });
         }
@@ -32,7 +33,7 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
       }).catch(() => {});
     }
     return () => controller.abort();
-  }, [insertion?.enabled, interval, titles, user?.id]);
+  }, [insertion?.enabled, interval, movieCount, titles, user?.id]);
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
