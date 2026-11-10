@@ -6,14 +6,15 @@ import { useAuth } from '@/context/AuthContext';
 import { ProgramCard } from './ProgramCard';
 import { openAdSession, decideAd, recordAdEvent, approvedAdHref, type AdContext, type AdSession, type Advertisement } from '@/services/advertising';
 
-export function SponsoredPlacement({ placement, context, content, channel }: AdContext & { placement: string }) {
+export function SponsoredPlacement({ placement, context, content, channel, selection }: AdContext & { placement: string; selection?: { session: AdSession; ad: Advertisement } }) {
   const { user } = useAuth();
   const [result, setResult] = useState<{ key: string; session: AdSession; ad: Advertisement } | null>(null);
   const element = useRef<HTMLElement>(null);
   const image = useRef<HTMLImageElement>(null);
   const key = `${user?.id ?? 'anonymous'}:${placement}:${context}:${content ?? ''}:${channel ?? ''}`;
-  const active = result?.key === key ? result : null;
+  const active = selection ?? (result?.key === key ? result : null);
   useEffect(() => {
+    if (selection) return;
     const controller = new AbortController();
     setResult(null);
     void openAdSession({ context, content, channel }, user?.id, controller.signal).then(async session => {
@@ -21,7 +22,7 @@ export function SponsoredPlacement({ placement, context, content, channel }: AdC
       if (!controller.signal.aborted && ad?.kind === 'image') setResult({ key, session, ad });
     }).catch(() => {});
     return () => controller.abort();
-  }, [key, context, content, channel, placement, user?.id]);
+  }, [key, context, content, channel, placement, selection, user?.id]);
 
   useEffect(() => {
     if (!active || !element.current) return;
