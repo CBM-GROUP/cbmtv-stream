@@ -10,7 +10,7 @@ const source = readFileSync(new URL('../src/lib/featured-adverts.ts', import.met
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const context = { exports: {}, require: () => { throw new Error('Unexpected runtime import'); } };
 vm.runInNewContext(code, context);
-const { insertFeaturedAdverts } = context.exports;
+const { insertFeaturedAdverts, reconcileFeaturedIndex } = context.exports;
 const movies = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, title: `Movie ${index + 1}`, content_type: 'movie' }));
 const selected = new Map(Array.from({ length: 6 }, (_, index) => [index + 1, { session: { session: 'viewer' }, ad: { decision_id: `ad-${index + 1}` } }]));
 
@@ -29,8 +29,22 @@ test('missing eligible adverts leave no empty slides', () => {
   assert.equal(insertFeaturedAdverts(movies, new Map(), 3).length, movies.length);
 });
 
+test('interval beyond the movie count leaves the complete movie sequence intact', () => {
+  const slides = insertFeaturedAdverts(movies, selected, movies.length + 1);
+  assert.deepEqual(Array.from(slides, slide => slide.movie.id), [1, 2, 3, 4, 5, 6]);
+});
+
 test('episodic featured titles keep their place without advancing the movie interval', () => {
   const titles = [movies[0], { id: 99, title: 'Series', content_type: 'tv_show' }, movies[1], movies[2]];
   const slides = insertFeaturedAdverts(titles, selected, 2);
   assert.deepEqual(Array.from(slides, slide => slide.kind === 'movie' ? slide.movie.id : 'advert'), [1, 99, 2, 'advert', 3]);
+});
+
+test('active movie and advert follow their identity when the slide sequence changes', () => {
+  const ordinary = insertFeaturedAdverts(movies.slice(0, 3), new Map(), 1);
+  const sponsored = insertFeaturedAdverts(movies.slice(0, 3), selected, 1);
+  assert.equal(reconcileFeaturedIndex(ordinary, sponsored, 1), 2);
+  assert.equal(reconcileFeaturedIndex(sponsored, ordinary, 2), 1);
+  assert.equal(reconcileFeaturedIndex(sponsored, ordinary, 3), 2);
+  assert.equal(reconcileFeaturedIndex(sponsored, [], 5), 0);
 });

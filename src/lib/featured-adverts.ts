@@ -15,3 +15,11 @@ export function insertFeaturedAdverts(titles: Program[], adverts: Map<number, { 
   });
   return slides;
 }
+
+export function reconcileFeaturedIndex(previous: FeaturedSlide[], slides: FeaturedSlide[], index: number): number {
+  const prior = previous[index];
+  const matching = prior ? slides.findIndex(slide => slide.kind === prior.kind &&
+    (slide.kind === 'movie' && prior.kind === 'movie' ? slide.movie.id === prior.movie.id :
+      slide.kind === 'advert' && prior.kind === 'advert' && slide.ad.decision_id === prior.ad.decision_id)) : -1;
+  return matching >= 0 ? matching : Math.min(index, Math.max(0, slides.length - 1));
+}

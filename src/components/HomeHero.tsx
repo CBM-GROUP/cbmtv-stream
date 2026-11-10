@@ -11,7 +11,7 @@ import { HeroTrailer } from './HeroTrailer';
 import { SponsoredPlacement } from './SponsoredPlacement';
 import { useAuth } from '@/context/AuthContext';
 import { openAdSession, decideAd, type AdSession, type Advertisement } from '@/services/advertising';
-import { insertFeaturedAdverts } from '@/lib/featured-adverts';
+import { insertFeaturedAdverts, reconcileFeaturedIndex } from '@/lib/featured-adverts';
 
 export function HomeHero({ titles, loading = false, settings = defaultHeroSettings, insertion }: { titles: Program[]; loading?: boolean; settings?: HeroSettings; insertion?: { enabled: boolean; interval: number } }) {
   const { user } = useAuth();
@@ -59,13 +59,13 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
     setCycle(value => value + 1);
   }, []);
   useEffect(() => {
-    const prior = previousSlides.current[activeRef.current];
+    const index = reconcileFeaturedIndex(previousSlides.current, slides, activeRef.current);
     previousSlides.current = slides;
-    if (!prior) return;
-    const next = slides.findIndex((slide) => slide.kind === prior.kind &&
-      (slide.kind === 'movie' && prior.kind === 'movie' ? slide.movie.id === prior.movie.id :
-        slide.kind === 'advert' && prior.kind === 'advert' && slide.ad.decision_id === prior.ad.decision_id));
-    if (next !== activeRef.current) commit(next >= 0 ? next : Math.min(activeRef.current, slides.length - 1));
+    if (requestedRef.current !== null) {
+      requestedRef.current = null;
+      setRequested(null);
+    }
+    if (index !== activeRef.current) commit(index);
   }, [slides, commit]);
   const select = useCallback((index: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -91,9 +91,6 @@ export function HomeHero({ titles, loading = false, settings = defaultHeroSettin
     onVisibility(); document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
-  useEffect(() => {
-    if (active >= titles.length && titles.length) commit(0);
-  }, [active, commit, titles]);
   useEffect(() => {
     if (settings.display_mode === 'thumbnails_only' && phase === 'trailer') setPhase('thumbnail');
   }, [phase, settings.display_mode]);
