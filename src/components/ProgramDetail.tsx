@@ -572,14 +572,7 @@ export default function ProgramDetail({ program, intent }: Props) {
           <PlayerOptions playerRef={videoPlayerRef} playing={isPlaying && !playbackEnded && !nextPart} cinema={playerMode === "theater"} fullscreen={isFullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} onTrailer={program.trailer_link ? handleTrailer : undefined} onShare={handleShare} copied={isCopied} />
         </div>
       </div>
-      </div>
-      {playbackEnded && !nextPart && (
-        <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
-          <span>{playbackType === "ad" ? "Trailer finished." : "Playback finished."}</span>
-          {similarPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
-          <Link href="/" className="text-teal-400 underline">Back to home</Link>
-        </div>
-      )}
+      <aside className="watch-sidebar" aria-label="Movie information">
       <section className="watch-details" aria-label="Title details">
         <h1 className="watch-title">{program.title}</h1>
         {(program.duration || program.genre) && <p className="watch-metadata">{[program.duration, program.genre].filter(Boolean).join(" / ")}</p>}
@@ -633,6 +626,15 @@ export default function ProgramDetail({ program, intent }: Props) {
               )}
       </section>
       <div className="watch-sponsor"><SponsoredPlacement placement="content_sponsor" context="content" content={program.id} /></div>
+      </aside>
+      </div>
+      {playbackEnded && !nextPart && (
+        <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
+          <span>{playbackType === "ad" ? "Trailer finished." : "Playback finished."}</span>
+          {similarPrograms.length > 0 && <a href="#similar-programs" className="text-teal-400 underline">Browse similar titles</a>}
+          <Link href="/" className="text-teal-400 underline">Back to home</Link>
+        </div>
+      )}
       {(similarPrograms.length > 0 || similarError) && (
         <div id="similar-programs" className="watch-similar">
           <ContentRail title="Similar titles" items={similarPrograms} source="similar" moreHref="/programs" />
