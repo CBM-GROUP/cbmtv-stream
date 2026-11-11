@@ -1,14 +1,12 @@
 "use client";
 
 import SeasonsAccordion from "@/components/SeasonsAccordion";
-import { SafeImage } from "@/components/SafeImage";
 import { Button } from "@/components/ui/button";
 import { getMiniSeriesParts, getSeasonEpisodes, getSeriesSeasons } from "@/services/series";
 import type { Episode, MiniSeries, Program, Season } from "@/types";
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ProgramCard } from "./ProgramCard";
+import { ContentRail } from "./ContentRail";
 import { AdvertisingVideo } from "./AdvertisingVideo";
 import { SponsoredPlacement } from './SponsoredPlacement';
 import { TrackedYouTube } from "./TrackedYouTube";
@@ -19,7 +17,7 @@ import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { resumePosition } from '@/lib/homepage-progress';
 import { useAuthorizedPlayback } from '@/hooks/useAuthorizedPlayback';
 import { playbackDestination, signInDestination } from '@/lib/auth-return';
-import { getSimilar, recordDetailOpened, recordRecommendationSelection, recordPlaybackEvent } from '@/services/discovery';
+import { getSimilar, recordDetailOpened, recordPlaybackEvent } from '@/services/discovery';
 
 type Props = {
   program: Program;
@@ -114,7 +112,9 @@ export default function ProgramDetail({ program, intent }: Props) {
   const openedProgram = useRef({ id: program.id, trailer: program.trailer_link, main: program.streaming_link });
   // Content.trailer_link and .streaming_link are both nullable on the API.
   const [isCopied, setIsCopied] = useState(false);
+  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const videoPlayerRef = useRef<HTMLDivElement>(null);
+  const videoFrameRef = useRef<HTMLDivElement>(null);
 
   // Use the same default on the server and first client render. Restore a
   // returning viewer's preference after mount to avoid a hydration mismatch.
@@ -148,6 +148,16 @@ export default function ProgramDetail({ program, intent }: Props) {
         console.error("Could not copy text: ", err);
       }
     );
+  };
+
+  const handleTrailer = () => {
+    if (!program.trailer_link) return;
+    dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
+    setCurrentPart(null);
+    setNextPart(null);
+    setSelectionMessage(null);
+    setPendingMain(false);
+    setInitialSelection(selectionKey);
   };
 
   useEffect(() => {
@@ -272,6 +282,35 @@ export default function ProgramDetail({ program, intent }: Props) {
     }
   }, []);
 
+  // Direct video can be wider or narrower than its 16:9 player box. Keep the
+  // trailer action inside the rendered image, including after mode changes.
+  const updateSkipBounds = useCallback(() => {
+    const frame = videoFrameRef.current;
+    if (!frame) return;
+    const video = frame.querySelector('video');
+    if (!video?.videoWidth || !video.videoHeight) {
+      frame.style.removeProperty('--skip-video-right');
+      frame.style.removeProperty('--skip-video-bottom');
+      return;
+    }
+    const width = frame.clientWidth;
+    const height = frame.clientHeight;
+    const aspect = video.videoWidth / video.videoHeight;
+    const visibleWidth = Math.min(width, height * aspect);
+    const visibleHeight = Math.min(height, width / aspect);
+    frame.style.setProperty('--skip-video-right', `${(width - visibleWidth) / 2 + 12}px`);
+    frame.style.setProperty('--skip-video-bottom', `${(height - visibleHeight) / 2 + 52}px`);
+  }, []);
+
+  useEffect(() => {
+    const frame = videoFrameRef.current;
+    if (!frame) return;
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateSkipBounds) : null;
+    observer?.observe(frame);
+    updateSkipBounds();
+    return () => observer?.disconnect();
+  }, [currentVideoUrl, updateSkipBounds]);
+
   useEffect(() => {
     if (openedProgram.current.id === program.id &&
         openedProgram.current.trailer === program.trailer_link &&
@@ -284,7 +323,7 @@ export default function ProgramDetail({ program, intent }: Props) {
 
   /*
    * Scroll the player into view when the viewer switches what is playing --
-   * picking an episode, switching to the trailer, hitting "Watch now".
+   * picking an episode, switching to the trailer, or replaying.
    *
    * Not on the first pass, though. This effect also ran on mount, which yanked
    * a freshly opened page downward before the reader had done anything; the
@@ -379,7 +418,7 @@ export default function ProgramDetail({ program, intent }: Props) {
       const next = orderedParts[orderedParts.findIndex(candidate => candidate.key === part?.key) + 1];
       if (!next) {
         setCurrentPart(part);
-        setSelectionMessage({ key: selectionKey, text: 'You finished this episode. Choose an episode below or press Watch now to replay it.' });
+        setSelectionMessage({ key: selectionKey, text: 'You finished this episode. Choose an episode below or use Replay to watch it again.' });
         dispatchPlayback(state => playbackTransition(playbackTransition(state, { type: 'playMain', url: null }), { type: 'ended' }));
         return;
       }
@@ -449,6 +488,7 @@ export default function ProgramDetail({ program, intent }: Props) {
   }, [nextPart, secondsLeft, playPart]);
 
   const playerMessage = selectionMessage?.key === selectionKey ? selectionMessage.text : null;
+  const synopsisCanExpand = program.description.length > 140;
   const retryParts = () => {
     setSelectionMessage(null);
     setPartsLoad({ contentId: program.id, state: 'loading' });
@@ -466,20 +506,22 @@ export default function ProgramDetail({ program, intent }: Props) {
         onPlayingCapture={() => setIsPlaying(true)}
         onPauseCapture={() => setIsPlaying(false)}
         onEndedCapture={() => setIsPlaying(false)}
+        onLoadedMetadataCapture={updateSkipBounds}
       >
-        <div className="player-frame">
+        <div ref={videoFrameRef} className="player-frame">
           {playbackType === "ad" && Boolean(program.playback_available || program.streaming_link || episodic || orderedParts.length) && (
             <button
               onClick={startMain}
-              className="absolute bottom-16 right-3 bg-black/70 z-10 px-3 py-2 cursor-pointer hover:bg-black/90 rounded-md text-sm"
+              className="skip-trailer absolute z-10 inline-flex min-h-11 items-center rounded-md border border-white/25 bg-black/65 px-3 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/85"
+              aria-label="Skip trailer and start playback"
             >
-              Skip
+              Skip trailer
             </button>
           )}
           {authLoading || initialSelection !== selectionKey ? <div className="flex h-full items-center justify-center px-4 text-center text-white/75" role="status">{progressError ? <button className="primary-action" onClick={retryProgress}>Couldn&apos;t load saved progress. Try again</button> : episodic && !partsReady && (pendingMain || intent?.play) ? 'Loading episodes...' : 'Loading playback...'}</div> :
-          playerMessage ? <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-white/75" role="status"><p>{playerMessage}</p>{partsFailed && <button className="primary-action" onClick={retryParts}>Retry episodes</button>}</div> :
+          playerMessage ? <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-white/75" role="status"><p>{playerMessage}</p>{partsFailed && <button className="primary-action" onClick={retryParts}>Retry episodes</button>}{playbackEnded && <button type="button" className="player-replay" onClick={startMain}>Replay</button>}</div> :
           playbackType === 'streaming' && !user ? <div className="flex h-full items-center justify-center px-4 text-center"><Link className="primary-action" href={signInDestination(playbackDestination(program.id, currentPart ?? undefined))}>Sign in to watch</Link></div> :
-          playbackEnded ? <div className="flex h-full items-center justify-center px-4 text-center text-white/75" role="status">Playback finished. Press Watch now to replay.</div> :
+          playbackEnded ? <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-white/75" role="status"><p>Playback finished.</p><button type="button" className="player-replay" onClick={startMain}>Replay</button></div> :
           playbackType === 'streaming' && (authLoading || !progressReady || !authorization.grant) ? <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-white/75" role="status">{progressError ? <button className="primary-action" onClick={retryProgress}>Couldn&apos;t load saved progress. Try again</button> : authorization.message ? <><p>{authorization.message}</p><button className="primary-action" onClick={authorization.retry}>Retry playback</button></> : 'Loading playback...'}</div> : <>
           {urlType === "youtube" && youtubeId && (
             <TrackedYouTube key={`${currentVideoUrl}:${playbackSession}:${user?.id ?? 'anonymous'}`} videoId={youtubeId} startSeconds={startSeconds} onProgress={trackProgress} onEnded={handlePlaybackEnded} onPlaybackChange={setIsPlaying} />
@@ -527,62 +569,9 @@ export default function ProgramDetail({ program, intent }: Props) {
             </div>
           )}
 
-          <PlayerOptions playerRef={videoPlayerRef} playing={isPlaying && !playbackEnded && !nextPart} cinema={playerMode === "theater"} fullscreen={isFullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} />
+          <PlayerOptions playerRef={videoPlayerRef} playing={isPlaying && !playbackEnded && !nextPart} cinema={playerMode === "theater"} fullscreen={isFullscreen} onCinema={toggleMode} onFullscreen={toggleFullscreen} onTrailer={program.trailer_link ? handleTrailer : undefined} onShare={handleShare} copied={isCopied} />
         </div>
       </div>
-      <aside className="watch-sidebar" aria-label="Movie information">
-        <SponsoredPlacement placement="content_sponsor" context="content" content={program.id} />
-        <div className="flex items-start gap-4 border-b border-white/10 pb-6">
-          <SafeImage
-            src={program.thumbnail}
-            alt={`${program.title} poster`}
-            width={300}
-            height={450}
-            className="h-36 aspect-3/4 w-auto rounded-md object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-white">{program.title}</h1>
-            <p className="mt-3 text-sm text-white/70">{program.duration || "Duration unavailable"}</p>
-            <p className="mt-1 text-sm text-white/70">{program.genre || "Genre unavailable"}</p>
-          </div>
-        </div>
-        <p className="mt-6 line-clamp-6 text-sm leading-relaxed text-white/70">
-          {program.description}
-        </p>
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <Button
-            onClick={() => {
-              startMain();
-            }}
-            disabled={!(program.playback_available || program.streaming_link || orderedParts.length) || (playbackType === 'streaming' && !playbackEnded)}
-            className="h-11 w-full rounded-lg bg-gradient-to-tr from-chart-4/60 to-chart-5/60 text-black uppercase cursor-pointer"
-          >
-            Watch now
-          </Button>
-          {program.trailer_link && (
-            <Button
-              onClick={() => {
-                dispatchPlayback((state) => playbackTransition(state, { type: "playTrailer", url: program.trailer_link as string }));
-                setCurrentPart(null);
-                setNextPart(null);
-                setSelectionMessage(null);
-                setPendingMain(false);
-                setInitialSelection(selectionKey);
-              }}
-              disabled={playbackType === "ad" && !playbackEnded}
-              className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
-            >
-              Watch trailer
-            </Button>
-          )}
-          <Button
-            onClick={handleShare}
-            className="h-11 w-full rounded-lg border border-white/20 bg-transparent text-white uppercase cursor-pointer hover:bg-white/10"
-          >
-            {isCopied ? "Copied!" : "Share"}
-          </Button>
-        </div>
-      </aside>
       </div>
       {playbackEnded && !nextPart && (
         <div className="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-3 px-6 text-sm text-white/75" role="status">
@@ -591,57 +580,18 @@ export default function ProgramDetail({ program, intent }: Props) {
           <Link href="/" className="text-teal-400 underline">Back to home</Link>
         </div>
       )}
-      {/*
-        Always rendered. This block used to be gated on
-        `playbackType != "streaming"`, so pressing "Watch now" deleted the
-        synopsis, cast, genre, poster, share button and the whole seasons
-        accordion -- collapsing the page to a player and an "Up next" grid at
-        the exact moment a viewer is most likely to want to know what they are
-        watching, and taking the episode list away mid-series.
-      */}
-      <div className="container mx-auto px-4 mt-14 pb-24">
-          <div className="max-w-4xl">
-            <div>
-              <h2 className="text-3xl font-bold mb-6 text-white/80">
-                Synopsis
-              </h2>
-              <p className="text-lg text-white/60 mb-10 leading-relaxed">
-                {program.description}
-              </p>
-
-              <h2 className="text-3xl font-bold mb-6 text-white/80">
-                Overview
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">
-                    Director
-                  </h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.director || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">
-                    Writer
-                  </h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.writer || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white/80">Genre</h3>
-                  <p className="text-white/70 mt-1 text-white/60">
-                    {program.genre || "N/A"}
-                  </p>
-                </div>
-              </div>
+      <section className="watch-details" aria-label="Title details">
+        <h1 className="watch-title">{program.title}</h1>
+        {(program.duration || program.genre) && <p className="watch-metadata">{[program.duration, program.genre].filter(Boolean).join(" / ")}</p>}
+        {program.description && <div className="watch-synopsis">
+          <p id="watch-synopsis-text" className={!synopsisExpanded && synopsisCanExpand ? "line-clamp-3" : ""}>{program.description}</p>
+          {synopsisCanExpand && <button type="button" className="watch-expand" aria-expanded={synopsisExpanded} aria-controls="watch-synopsis-text" onClick={() => setSynopsisExpanded(value => !value)}>{synopsisExpanded ? "Show less" : "More details"}</button>}
+        </div>}
+        {program.director && <p className="watch-director"><span>Director</span> {program.director}</p>}
 
               {isSeries && program.content_type !== 'miniseries' && (
-                <div className="mt-10">
-                  <h2 className="text-3xl font-bold mb-6 text-white/80 line-clamp-2">
-                    Seasons
-                  </h2>
+                <div className="watch-parts">
+                  <h2 className="watch-section-title">Episodes</h2>
                   <SeasonsAccordion
                     seasons={seasons}
                     episodesBySeason={episodesBySeason}
@@ -657,9 +607,9 @@ export default function ProgramDetail({ program, intent }: Props) {
                 </div>
               )}
               {program.content_type === "miniseries" && miniParts.length > 0 && (
-                <div className="mt-10">
-                  <h2 className="mb-6 text-3xl font-bold text-white/80">Parts</h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                <div className="watch-parts">
+                  <h2 className="watch-section-title">Parts</h2>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {miniParts.map((part) => (
                       <button
                         key={part.id}
@@ -673,7 +623,7 @@ export default function ProgramDetail({ program, intent }: Props) {
                             miniseries: part.id,
                           });
                         }}
-                        className="rounded-lg border border-white/10 p-4 text-left text-white/80 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                         className="min-h-11 rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white/80 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {part.miniseries_no}. {part.title}
                       </button>
@@ -681,33 +631,12 @@ export default function ProgramDetail({ program, intent }: Props) {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-      </div>
+      </section>
+      <div className="watch-sponsor"><SponsoredPlacement placement="content_sponsor" context="content" content={program.id} /></div>
       {(similarPrograms.length > 0 || similarError) && (
-        <div id="similar-programs" className="w-full mx-auto p-5 lg:p-14 mb-24">
-          <div className="mb-8 flex items-center justify-between">
-            <h3 className="text-xl font-medium">Similar titles</h3>
-            <Link href="/programs" className="font-normal text-md flex items-center space-x-3">
-              <small>More</small>
-              <ChevronRight size={18} strokeWidth={1.5}/>
-            </Link>
-          </div>
-          {similarError && <p role="alert" className="mb-4 text-sm text-white/65">Similar titles are unavailable right now.</p>}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
-            {similarPrograms.map((item) => (
-              <ProgramCard
-                key={item.id}
-                id={item.id}
-                title={item.title}
-                src={item.thumbnail}
-                alt={item.title}
-                slug={`programs/${item.id}`}
-                href={`/programs/${item.id}`}
-                onClick={() => { void recordRecommendationSelection(item.id, 'similar'); }}
-              />
-            ))}
-          </div>
+        <div id="similar-programs" className="watch-similar">
+          <ContentRail title="Similar titles" items={similarPrograms} source="similar" moreHref="/programs" />
+          {similarError && <p role="alert" className="content-section text-sm text-white/65">Similar titles are unavailable right now.</p>}
         </div>
       )}
     </>

@@ -2,12 +2,13 @@
 
 import { useId, useRef } from "react";
 import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 import type { Program } from "@/types";
 import { ProgramCard } from "./ProgramCard";
 import { recordRecommendationSelection, type DiscoverySource } from '@/services/discovery';
 
-export function ContentRail({ title, items = [], loading = false, error = false, onRetry, source }: {
-  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void; source?: DiscoverySource;
+export function ContentRail({ title, items = [], loading = false, error = false, onRetry, source, moreHref }: {
+  title: string; items?: Program[]; loading?: boolean; error?: boolean; onRetry?: () => void; source?: DiscoverySource; moreHref?: string;
 }) {
   const track = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -15,10 +16,11 @@ export function ContentRail({ title, items = [], loading = false, error = false,
   return <section className="content-section" aria-labelledby={id}>
     <div className="mb-3 flex min-h-11 items-center justify-between gap-4">
       <h2 id={id} className="section-title">{title}</h2>
+      <div className="flex items-center gap-2">{moreHref && !error && <Link href={moreHref} className="inline-flex min-h-11 items-center text-sm text-white/70 hover:text-white">More titles</Link>}
       {!loading && !error && <button type="button" className="rail-arrow" aria-label={`Scroll ${title} right`} onClick={() => {
         const rail = track.current;
         if (rail) rail.scrollTo({ left: rail.scrollLeft >= rail.scrollWidth - rail.clientWidth - 2 ? 0 : rail.scrollLeft + rail.clientWidth * .8, behavior: "smooth" });
-      }}><ChevronRight size={18} /></button>}
+      }}><ChevronRight size={18} /></button>}</div>
     </div>
     {error ? <div className="flex items-center gap-4 py-5 text-sm text-white/65" role="alert"><p>Couldn&apos;t load {title.toLowerCase()}.</p><button onClick={onRetry} className="text-teal-300 underline">Try again</button></div> :
       <div ref={track} className="content-rail h-scroll" tabIndex={0} aria-label={`${title} titles`} aria-busy={loading}>

@@ -1,16 +1,19 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { Maximize, Minimize, MoreVertical, RectangleHorizontal } from "lucide-react";
+import { Maximize, Minimize, MoreVertical, RectangleHorizontal, Clapperboard, Share2 } from "lucide-react";
 import { useEffect, useState, type RefObject } from "react";
 
-export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema, onFullscreen }: {
+export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema, onFullscreen, onTrailer, onShare, copied }: {
   playerRef: RefObject<HTMLDivElement | null>;
   playing: boolean;
   cinema: boolean;
   fullscreen: boolean;
   onCinema: () => void;
   onFullscreen: () => void;
+  onTrailer?: () => void;
+  onShare: () => void;
+  copied: boolean;
 }) {
   const [visible, setVisible] = useState(true);
   const [open, setOpen] = useState(false);
@@ -54,6 +57,8 @@ export function PlayerOptions({ playerRef, playing, cinema, fullscreen, onCinema
         <button type="button" aria-pressed={cinema} onClick={() => { onCinema(); setOpen(false); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-left text-sm hover:bg-white/10">
           <RectangleHorizontal size={18} aria-hidden="true" />{cinema ? "Exit cinema mode" : "Cinema mode"}
         </button>
+        {onTrailer && <button type="button" onClick={() => { onTrailer(); setOpen(false); }} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-left text-sm hover:bg-white/10"><Clapperboard size={18} aria-hidden="true" />Watch trailer</button>}
+        <button type="button" onClick={onShare} className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-left text-sm hover:bg-white/10"><Share2 size={18} aria-hidden="true" />{copied ? "Copied!" : "Share"}</button>
       </Popover.Content>
     </Popover.Root>
     <button type="button" onClick={onFullscreen} className="player-option-button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"}>

@@ -25,7 +25,7 @@ const button = (tree, label) => descendants(tree).find(node => ['button', 'Butto
 
 // Execute the real detail component with controlled hooks and service boundaries.
 // These are component coordination tests, not browser/media decoder verification.
-function fixture({ episodic = false, trailer = true, snapshot = null, intent, holdEpisodes = false, failEpisodes = false } = {}) {
+function fixture({ episodic = false, trailer = true, snapshot = null, intent, holdEpisodes = false, failEpisodes = false, similarItems = [] } = {}) {
   const slots = [], effects = [], authorizationCalls = [], progressCalls = [], records = [], trace = [], timers = new Map();
   let cursor = 0, dirty = false;
   const changed = (old, deps) => !old || deps.some((value, index) => !Object.is(value, old.deps[index]));
@@ -51,7 +51,7 @@ function fixture({ episodic = false, trailer = true, snapshot = null, intent, ho
     },
   };
   const episodesGate = deferred(), histories = new Map();
-  const program = { id: 7, title: 'Fixture title', description: 'Fixture synopsis', content_type: episodic ? 'series' : 'movie', format: episodic ? 'series' : 'standalone', trailer_link: trailer ? 'https://media.example/trailer.mp4' : null, streaming_link: null, playback_available: true, genre: '', channel: 1 };
+  const program = { id: 7, title: 'Fixture title', description: 'Fixture synopsis', director: 'A Director', cast: ['Actor Name'], content_type: episodic ? 'series' : 'movie', format: episodic ? 'series' : 'standalone', trailer_link: trailer ? 'https://media.example/trailer.mp4' : null, streaming_link: null, playback_available: true, genre: '', channel: 1 };
   const state = {
     auth: { user: { id: 1 }, loading: false }, ready: true, snapshot, failEpisodes,
     episodes: [{ id: 11, title: 'Episode one', episode_number: 1, playback_available: true }, { id: 12, title: 'Episode two', episode_number: 2, playback_available: true }],
@@ -72,9 +72,9 @@ function fixture({ episodic = false, trailer = true, snapshot = null, intent, ho
     '@/components/SeasonsAccordion': { __esModule: true, default: 'SeasonsAccordion' },
     '@/components/SafeImage': { SafeImage: 'SafeImage' }, '@/components/ui/button': { Button: 'Button' },
     '@/hooks/useContent': { useContent: () => ({ data: [] }) }, '@/services/series': services,
-    '@/services/discovery': { getSimilar: async () => ({ items: [] }), recordDetailOpened: async () => true, recordRecommendationSelection: async () => true, recordPlaybackEvent: async () => true },
+    '@/services/discovery': { getSimilar: async () => ({ items: similarItems }), recordDetailOpened: async () => true, recordRecommendationSelection: async () => true, recordPlaybackEvent: async () => true },
     'lucide-react': { ChevronRight: 'ChevronRight' }, 'next/link': { __esModule: true, default: 'Link' },
-    './ProgramCard': { ProgramCard: 'ProgramCard' }, './TrackedVideo': { TrackedVideo: 'TrackedVideo' },
+    './ContentRail': { ContentRail: 'ContentRail' }, './TrackedVideo': { TrackedVideo: 'TrackedVideo' },
     './AdvertisingVideo': { AdvertisingVideo: 'TrackedVideo' }, './SponsoredPlacement': { SponsoredPlacement: 'SponsoredPlacement' },
     './TrackedYouTube': { TrackedYouTube: 'TrackedYouTube' }, './PlayerOptions': { PlayerOptions: 'PlayerOptions' },
     '@/lib/playback-flow': flowContext.exports, '@/context/AuthContext': { useAuth: () => state.auth },
@@ -119,7 +119,7 @@ test('fast trailer Skip waits for episodic data and starts the first available e
   try {
     let tree = page.render();
     assert.equal(find(tree, 'TrackedVideo').props.src, page.program.trailer_link);
-    button(tree, 'Skip').props.onClick(); tree = page.render();
+    button(tree, 'Skip trailer').props.onClick(); tree = page.render();
     assert.equal(find(tree, 'TrackedVideo'), undefined);
     assert.equal(page.authorizationCalls.some(call => call.enabled), false);
     page.resolveEpisodes(); tree = await page.settle();
@@ -165,7 +165,7 @@ test('initial progress restoration never mounts a trailer before resuming; manua
     page.state.ready = true; let tree = page.render();
     assert.equal(find(tree, 'TrackedVideo').props.startSeconds, 31);
     assert.equal(page.trace.some(tree => find(tree, 'TrackedVideo')?.props.src === page.program.trailer_link), false);
-    button(tree, 'Watch trailer').props.onClick(); tree = page.render();
+    find(tree, 'PlayerOptions').props.onTrailer(); tree = page.render();
     assert.equal(find(tree, 'TrackedVideo').props.src, page.program.trailer_link);
     assert.equal(find(tree, 'TrackedVideo').props.startSeconds, 0);
   } finally { page.cleanup(); }
@@ -221,7 +221,7 @@ test('completed final episodes remain episode-specific and explicit episode requ
     assert.equal(find(tree, 'TrackedVideo'), undefined);
     assert.match(text(tree), /finished this episode/);
     assert.equal(final.records.length, 0, 'opening a completed episode must not complete a series');
-    button(tree, 'Watch now').props.onClick(); tree = final.render();
+    button(tree, 'Replay').props.onClick(); tree = final.render();
     assert.match(find(tree, 'TrackedVideo').props.src, /12\.m3u8$/);
     assert.equal(find(tree, 'TrackedVideo').props.startSeconds, 0);
   } finally { final.cleanup(); }
@@ -231,4 +231,48 @@ test('completed final episodes remain episode-specific and explicit episode requ
     explicit.render(); const tree = await explicit.settle();
     assert.match(find(tree, 'TrackedVideo').props.src, /12\.m3u8$/);
   } finally { explicit.cleanup(); }
+});
+
+test('watch details are compact, omit cast and body actions, and reuse the similar-title rail', async () => {
+  const page = fixture({ similarItems: [{ id: 8, title: 'Related title', thumbnail: null }] });
+  try {
+    page.render(); const tree = await page.settle();
+    assert.match(text(tree), /Fixture title/);
+    assert.match(text(tree), /Fixture synopsis/);
+    assert.match(text(tree), /A Director/);
+    assert.doesNotMatch(text(tree), /Actor Name/);
+    assert.equal(find(tree, 'SafeImage'), undefined);
+    assert.equal(button(tree, 'Watch now'), undefined);
+    assert.equal(button(tree, 'Watch trailer'), undefined);
+    assert.equal(button(tree, 'Share'), undefined);
+    const rail = find(tree, 'ContentRail');
+    assert.equal(rail.props.title, 'Similar titles');
+    assert.equal(rail.props.source, 'similar');
+    assert.equal(rail.props.items[0].title, 'Related title');
+    assert.equal(typeof find(tree, 'PlayerOptions').props.onShare, 'function');
+  } finally { page.cleanup(); }
+});
+
+test('finished movie has a compact player replay action', () => {
+  const page = fixture({ trailer: false });
+  try {
+    let tree = page.render();
+    find(tree, 'TrackedVideo').props.onEnded(); tree = page.render();
+    assert.ok(button(tree, 'Replay'));
+    button(tree, 'Replay').props.onClick(); tree = page.render();
+    assert.match(find(tree, 'TrackedVideo').props.src, /movie\.m3u8$/);
+  } finally { page.cleanup(); }
+});
+
+test('long synopsis expands without changing the selected playback', () => {
+  const page = fixture({ trailer: false });
+  try {
+    page.program.description = 'A longer synopsis. '.repeat(12);
+    let tree = page.render();
+    const playerKey = find(tree, 'TrackedVideo').key;
+    assert.ok(button(tree, 'More details'));
+    button(tree, 'More details').props.onClick(); tree = page.render();
+    assert.ok(button(tree, 'Show less'));
+    assert.equal(find(tree, 'TrackedVideo').key, playerKey);
+  } finally { page.cleanup(); }
 });
