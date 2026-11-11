@@ -163,8 +163,10 @@ try {
   for (const width of [390, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
     await delay(300);
-    const layout = await evaluate('({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,controls:document.querySelector("video").controls})');
+    const layout = await evaluate('(() => { const player=document.querySelector(".player-band").getBoundingClientRect(); const info=document.querySelector(".watch-sidebar").getBoundingClientRect(); return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,controls:document.querySelector("video").controls,playerWidth:player.width,playerBottom:player.bottom,infoLeft:info.left,infoTop:info.top}; })()');
     assert.ok(layout.scrollWidth <= layout.width + 1, 'player has no viewport overflow'); assert.ok(layout.controls);
+    if (width >= 1200) assert.ok(layout.playerWidth < layout.width * .8 && layout.infoLeft >= layout.playerWidth, 'desktop keeps the original player and side information split');
+    else assert.ok(layout.infoTop >= layout.playerBottom, 'mobile information follows the unchanged player');
     layouts.push(layout);
     const { result } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(join(root, `${width}.png`), Buffer.from(result.data, 'base64'));
@@ -173,8 +175,8 @@ try {
   await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Cinema mode')");
   await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Cinema mode').click()");
   await waitFor("document.querySelector('.watch-layout')?.dataset.playerMode==='theater'");
-  const cinemaFrame = await evaluate("(() => { const frame=document.querySelector('.player-frame').getBoundingClientRect(); return { width:frame.width, height:frame.height, viewport:innerWidth }; })()");
-  assert.ok(cinemaFrame.width <= cinemaFrame.viewport + 1 && Math.abs(cinemaFrame.width / cinemaFrame.height - 16 / 9) < .02, 'cinema video frame stays centered and 16:9');
+  const cinemaFrame = await evaluate("(() => { const frame=document.querySelector('.player-frame').getBoundingClientRect(); return { width:frame.width, height:frame.height, viewportWidth:innerWidth, viewportHeight:innerHeight }; })()");
+  assert.ok(cinemaFrame.width <= cinemaFrame.viewportWidth + 1 && cinemaFrame.height <= cinemaFrame.viewportHeight + 1, 'cinema player stays within the viewport');
   await evaluate("document.querySelector('[aria-label=\"Player options\"]').click()");
   await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Exit cinema mode')");
   await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Exit cinema mode').click()");
