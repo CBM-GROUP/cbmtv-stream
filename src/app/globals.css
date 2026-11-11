@@ -181,20 +181,13 @@ body {
  */
 .watch-layout {
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-  padding: 0 1.5rem;
-  align-items: start;
-}
-
-@media (min-width: 1200px) {
-  .watch-layout[data-player-mode="standard"] {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 24%);
-  }
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
 }
 
 .watch-layout[data-player-mode="theater"] {
+  max-width: none;
   padding-inline: 0;
 }
 
@@ -212,21 +205,15 @@ body {
 }
 
 .watch-layout[data-player-mode="theater"] .player-frame {
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  aspect-ratio: auto;
+  width: min(100%, calc((100vh - var(--header-h)) * 16 / 9));
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 
-.watch-layout[data-player-mode="theater"] .watch-sidebar {
-  margin-inline: auto;
-  width: min(100%, 1280px);
-  padding-inline: 1.5rem;
-}
-
-.watch-sidebar {
-  min-width: 0;
-  color: white;
+@supports (height: 100dvh) {
+  .watch-layout[data-player-mode="theater"] .player-frame {
+    width: min(100%, calc((100dvh - var(--header-h)) * 16 / 9));
+  }
 }
 
 .home-hero-slide {
@@ -416,7 +403,13 @@ body {
  * ever fight `aspect-ratio`, never bind.
  */
 .player-band:fullscreen .player-frame {
-  max-width: min(100%, calc(100vh * 16 / 9));
+  width: min(100%, calc(100vh * 16 / 9));
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+@supports (height: 100dvh) {
+  .player-band:fullscreen .player-frame { width: min(100%, calc(100dvh * 16 / 9)); }
 }
 
 /* Fullscreen must override cinema mode's header-aware height and width. */
@@ -425,9 +418,12 @@ body {
 }
 
 .watch-layout[data-player-mode="theater"] .player-band:fullscreen .player-frame {
-  width: 100%;
-  height: 100%;
-  max-width: none;
+  width: min(100%, calc(100vh * 16 / 9));
+  height: auto;
+}
+
+@supports (height: 100dvh) {
+  .watch-layout[data-player-mode="theater"] .player-band:fullscreen .player-frame { width: min(100%, calc(100dvh * 16 / 9)); }
 }
 
 /*
@@ -461,6 +457,33 @@ body {
 .player-options:has(:focus-visible) > * { pointer-events: auto; }
 .player-option-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: .375rem; background: rgba(0,0,0,.7); color: white; cursor: pointer; }
 .player-option-button:hover { background: rgba(0,0,0,.9); }
+
+.skip-trailer {
+  right: max(.75rem, env(safe-area-inset-right), var(--skip-video-right, 0px));
+  bottom: max(calc(3.25rem + env(safe-area-inset-bottom)), var(--skip-video-bottom, 0px));
+}
+.player-replay { min-height: 44px; padding: .5rem 1rem; border: 1px solid rgba(255,255,255,.3); border-radius: .375rem; background: rgba(255,255,255,.12); color: white; font-size: .875rem; font-weight: 600; }
+.player-replay:hover { background: rgba(255,255,255,.22); }
+.watch-details { width: min(100%, 960px); margin: 0 auto; padding: clamp(1rem, 2.5vw, 2rem) var(--page-gutter) 0; color: white; }
+.watch-title { font-size: clamp(1.375rem, 3vw, 2rem); font-weight: 700; line-height: 1.2; letter-spacing: -.025em; }
+.watch-metadata { margin-top: .35rem; color: rgba(255,255,255,.65); font-size: .875rem; }
+.watch-synopsis { margin-top: .85rem; max-width: 75ch; color: rgba(255,255,255,.75); font-size: .875rem; line-height: 1.5; }
+.watch-expand { display: inline-flex; min-height: 44px; align-items: center; color: #5eead4; font-size: .8125rem; font-weight: 600; }
+.watch-director { margin-top: .25rem; color: rgba(255,255,255,.75); font-size: .875rem; }
+.watch-director span { margin-right: .35rem; color: rgba(255,255,255,.5); }
+.watch-parts { margin-top: 1.25rem; }
+.watch-section-title { margin-bottom: .5rem; font-size: 1rem; font-weight: 650; }
+.watch-parts [data-slot="accordion-trigger"] { min-height: 44px; padding-block: .5rem; }
+.watch-sponsor { width: min(100%, 960px); margin: 1.25rem auto 0; padding-inline: var(--page-gutter); }
+.watch-sponsor .content-section { margin-bottom: 0; padding-inline: .75rem; }
+.watch-similar { margin-top: clamp(1.5rem, 3vw, 2.5rem); padding-bottom: 2rem; }
+
+@media (max-width: 639px) {
+  .watch-layout { padding-inline: 0; }
+  .watch-details { padding-top: 1rem; }
+  .watch-sponsor { margin-top: 1rem; }
+  .watch-similar { margin-top: 1.5rem; }
+}
 
 .embla__slide {
   min-width: 0;

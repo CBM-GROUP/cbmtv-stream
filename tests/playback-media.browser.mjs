@@ -169,11 +169,25 @@ try {
     const { result } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(join(root, `${width}.png`), Buffer.from(result.data, 'base64'));
   }
+  await evaluate("document.querySelector('[aria-label=\"Player options\"]').click()");
+  await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Cinema mode')");
+  await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Cinema mode').click()");
+  await waitFor("document.querySelector('.watch-layout')?.dataset.playerMode==='theater'");
+  const cinemaFrame = await evaluate("(() => { const frame=document.querySelector('.player-frame').getBoundingClientRect(); return { width:frame.width, height:frame.height, viewport:innerWidth }; })()");
+  assert.ok(cinemaFrame.width <= cinemaFrame.viewport + 1 && Math.abs(cinemaFrame.width / cinemaFrame.height - 16 / 9) < .02, 'cinema video frame stays centered and 16:9');
+  await evaluate("document.querySelector('[aria-label=\"Player options\"]').click()");
+  await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Exit cinema mode')");
+  await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Exit cinema mode').click()");
+  await waitFor("document.querySelector('.watch-layout')?.dataset.playerMode==='standard'");
   const finalMetrics = await evaluate('window.playbackMetrics');
   assert.ok(![...nativeMetrics, ...qualityMetrics, ...finalMetrics].some(metric => metric.name === 'error'));
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: true });
   await navigate('/programs/2');
-  await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Skip')");
-  await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Skip').click()");
+  await waitFor("Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='Skip trailer')");
+  const skipPosition = await evaluate(`(() => { const frame = document.querySelector('.player-frame').getBoundingClientRect(); const skip = document.querySelector('.skip-trailer').getBoundingClientRect(); return { right: frame.right - skip.right, bottom: frame.bottom - skip.bottom }; })()`);
+  assert.ok(skipPosition.right >= 8 && skipPosition.right <= 24, 'trailer Skip sits near the video right edge');
+  assert.ok(skipPosition.bottom >= 45 && skipPosition.bottom <= 72, 'trailer Skip stays low and clears native controls');
+  await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Skip trailer').click()");
   await waitFor('document.querySelector("video")?.currentSrc.includes("blob:") && document.querySelector("video")?.currentTime>0.5');
   assert.ok(selections.some(item=>item.path==='/api/content/2/playback/' && item.episode===21), 'fast Skip waits for delayed episodes and selects first');
   await navigate('/programs/2?play=1&episode=999');
