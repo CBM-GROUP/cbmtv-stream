@@ -29,14 +29,14 @@ function hooks() {
 function find(node, type) { if (node == null) return null; if (Array.isArray(node)) return node.map(n => find(n, type)).find(Boolean); return node.type === type ? node : find(node.props?.children, type); }
 const ad = { decision_id: 'server-decision', kind: 'video', url: 'https://media.example/ad.m3u8', duration_seconds: 20, skippable_after: 5, destination_url: 'https://brand.example/offer', advertiser: 'Sponsor' };
 
-function playbackFixture({ enabled = true, start = 0, noAd = false, failing = false } = {}) {
+function playbackFixture({ enabled = true, start = 0, noAd = false, failing = false, selectedAd = ad, midrollPoints = [60, 120] } = {}) {
   const engine = hooks(), requests = [], events = [], progress = []; let ended = 0;
   let now = 0;
   const document = Object.assign(new EventTarget(), { visibilityState: 'visible' }), observers = [];
-  const session = { enabled: true, session: 'signed', placements: [{ code: 'preroll', breakpoints: [] }, { code: 'midroll', breakpoints: [60, 120] }, { code: 'postroll', breakpoints: [] }] };
+  const session = { enabled: true, session: 'signed', placements: [{ code: 'preroll', breakpoints: [] }, { code: 'midroll', breakpoints: midrollPoints }, { code: 'postroll', breakpoints: [] }] };
   const services = {
     openAdSession: async () => session,
-    decideAd: async (_session, placement, key) => { requests.push(`${placement}:${key}`); if (failing) throw new Error('Network unavailable'); return noAd ? null : { ...ad, decision_id: placement }; },
+    decideAd: async (_session, placement, key) => { requests.push(`${placement}:${key}`); if (failing) throw new Error('Network unavailable'); return noAd ? null : { ...selectedAd, decision_id: placement }; },
     recordAdEvent: async (_session, selected, kind) => events.push({ decision: selected.decision_id, kind }),
     approvedAdHref: selected => selected.destination_url,
   };
@@ -53,6 +53,30 @@ function playbackFixture({ enabled = true, start = 0, noAd = false, failing = fa
 test('disabled advertising renders the ordinary player without requests', async () => {
   const f = playbackFixture({ enabled: false });
   assert.equal(f.render().type, 'TrackedVideo'); await turn(); assert.equal(f.requests.length, 0); f.cleanup();
+});
+
+test('server skip policy controls the button, including a non-skippable ten-second ad', async () => {
+  for (const delay of [null, 5]) {
+    const f = playbackFixture({ selectedAd: { ...ad, duration_seconds: 10, skippable_after: delay } });
+    f.render(); const boundary = await f.settle(); f.cleanup();
+    const mediaHooks = hooks(); Object.assign(f.engine.react, mediaHooks.react);
+    const tree = mediaHooks.render(() => boundary.type(boundary.props));
+    const skip = find(tree, 'button');
+    if (delay === null) assert.equal(skip, undefined);
+    else { assert.equal(skip.props.disabled, true); assert.match(skip.props.children, /Skip in 5s/); }
+    mediaHooks.cleanup();
+  }
+});
+
+test('configured mid-roll cue list limits interruptions without changing resumed position', async () => {
+  const f = playbackFixture({ midrollPoints: [60] });
+  try {
+    f.render(); let tree = await f.settle(); tree.props.done(); tree = f.render();
+    tree.props.onProgress(61, 180); tree = await f.settle(); tree.props.done(); tree = f.render();
+    assert.equal(tree.props.startSeconds, 61);
+    tree.props.onProgress(121, 180); await f.settle();
+    assert.equal(f.requests.filter(request => request.startsWith('midroll:')).length, 1);
+  } finally { f.cleanup(); }
 });
 
 test('pre-roll, mid-roll and post-roll isolate organic progress and preserve main position', async () => {
